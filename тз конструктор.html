@@ -1,0 +1,1002 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Конструктор ТЗ — CRM Plus AdTech</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #EC4899;
+      --primary-dark: #DB2777;
+      --primary-light: #FDF2F8;
+      --warning-color: #C2410C;
+      --warning-bg: #FFF7ED;
+      --warning-border: #FED7AA;
+      --success: #16A34A;
+      --border: #E5E7EB;
+      --text: #111827;
+      --text-muted: #6B7280;
+      --bg: #F3F4F6;
+      --card: #FFFFFF;
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+    }
+
+    /* ── Header ──────────────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, #9D174D 0%, #EC4899 55%, #F9A8D4 100%);
+      color: white;
+      padding: 20px 32px 0;
+    }
+    .header-top {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 20px;
+    }
+    .header-text h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .header-text p { opacity: 0.85; font-size: 13px; }
+
+    /* Cat strip in header */
+    .cat-strip {
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+    }
+    .cat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .cat-item img {
+      width: 72px;
+      height: 72px;
+      object-fit: cover;
+      border-radius: 10px 10px 0 0;
+      border: 2px solid rgba(255,255,255,0.4);
+      display: block;
+    }
+    .cat-item .cat-caption {
+      font-size: 10px;
+      opacity: 0.85;
+      text-align: center;
+      max-width: 80px;
+      line-height: 1.2;
+      padding-bottom: 6px;
+    }
+
+    /* ── Layout ──────────────────────────────────────── */
+    .main {
+      display: flex;
+      gap: 20px;
+      padding: 20px 24px;
+      max-width: 1440px;
+      margin: 0 auto;
+      align-items: flex-start;
+    }
+    .left-col { flex: 1; min-width: 0; }
+    .right-col { width: 460px; flex-shrink: 0; position: sticky; top: 20px; }
+
+    /* ── Card ────────────────────────────────────────── */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+
+    /* ── Type selector ───────────────────────────────── */
+    .type-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 7px;
+    }
+    .type-btn {
+      padding: 9px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: white;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-align: left;
+      transition: all 0.12s;
+      line-height: 1.3;
+    }
+    .type-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .type-btn.active {
+      border-color: var(--primary);
+      background: var(--primary-light);
+      color: var(--primary);
+    }
+    .type-btn .grp {
+      font-size: 10px;
+      font-weight: 400;
+      opacity: 0.65;
+      display: block;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    /* ── Form ────────────────────────────────────────── */
+    .form-group { margin-bottom: 14px; }
+    .form-label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 5px;
+    }
+    .req { color: #EF4444; }
+
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    input[type="datetime-local"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 8px 11px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      color: var(--text);
+      background: white;
+      transition: border-color 0.12s;
+      font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.1);
+    }
+    textarea { resize: vertical; min-height: 72px; line-height: 1.5; }
+
+    .field-hint {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+    }
+    .field-hint a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .field-hint a:hover { text-decoration: underline; }
+
+    /* ── Field note (e.g. after Глобальный контроль) ── */
+    .field-note {
+      margin-top: 5px;
+      font-size: 12px;
+      color: #6B7280;
+      background: #F9FAFB;
+      border-left: 3px solid var(--primary);
+      padding: 6px 10px;
+      border-radius: 0 6px 6px 0;
+      line-height: 1.4;
+    }
+    .field-note code {
+      font-family: 'Menlo', monospace;
+      font-size: 11.5px;
+      background: #F3F4F6;
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: var(--primary-dark);
+    }
+
+    /* ── SMS char counter ───────────────────────────── */
+    .sms-counter {
+      margin-top: 6px;
+      padding: 8px 11px;
+      border-radius: var(--radius-sm);
+      background: #F8F9FA;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      transition: all 0.15s;
+    }
+    .sms-counter .seg-chars { color: var(--text-muted); }
+    .sms-counter .seg-badge {
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: #E5E7EB;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .sms-counter.seg1 { border-color: #BBF7D0; background: #F0FDF4; }
+    .sms-counter.seg1 .seg-badge { background: #DCFCE7; color: #15803D; }
+    .sms-counter.seg2 { border-color: #FDE68A; background: #FFFBEB; }
+    .sms-counter.seg2 .seg-badge { background: #FEF3C7; color: #D97706; }
+    .sms-counter.seg3 { border-color: #FCA5A5; background: #FEF2F2; }
+    .sms-counter.seg3 .seg-badge { background: #FEE2E2; color: #DC2626; }
+
+    /* ── Multicheck ─────────────────────────────────── */
+    .check-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 6px;
+      padding: 10px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: white;
+    }
+    .check-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 6px;
+      transition: background 0.1s;
+      user-select: none;
+    }
+    .check-item:hover { background: var(--primary-light); }
+    .check-item input[type=checkbox] {
+      width: 15px;
+      height: 15px;
+      flex-shrink: 0;
+      accent-color: var(--primary);
+      padding: 0;
+      border: none;
+    }
+
+    /* ── File upload for layout ─────────────────────── */
+    .file-upload-area {
+      margin-top: 8px;
+      border: 1.5px dashed var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: all 0.12s;
+      background: white;
+    }
+    .file-upload-area:hover { border-color: var(--primary); background: var(--primary-light); }
+    .file-upload-area input[type=file] { display: none; }
+    .file-upload-btn {
+      padding: 5px 12px;
+      background: var(--primary-light);
+      color: var(--primary);
+      border: 1px solid #FBCFE8;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    .file-upload-name {
+      font-size: 12px;
+      color: var(--text-muted);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .file-upload-name.has-file { color: var(--text); font-weight: 500; }
+
+    /* ── Warning banner ──────────────────────────────── */
+    .warning-banner {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning-border);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--warning-color);
+      font-weight: 500;
+      margin-bottom: 16px;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    /* ── Create button ───────────────────────────────── */
+    .create-btn-wrap {
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      margin-top: 4px;
+    }
+    .btn-create {
+      width: 100%;
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.12s;
+    }
+    .btn-create:hover { background: var(--primary-dark); }
+
+    /* ── Right panel ─────────────────────────────────── */
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .preview-title { font-size: 14px; font-weight: 600; }
+
+    .btn {
+      padding: 7px 15px;
+      border-radius: var(--radius-sm);
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      transition: all 0.12s;
+      white-space: nowrap;
+    }
+    .btn:disabled { opacity: 0.5; cursor: default; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:not(:disabled):hover { background: var(--primary-dark); }
+    .btn-secondary { background: var(--primary-light); color: var(--primary); }
+    .btn-secondary:not(:disabled):hover { background: #FCE7F3; }
+    .btn-success { background: #DCFCE7; color: var(--success); }
+
+    .preview-box {
+      background: #F8F9FA;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      font-family: 'Menlo', 'Courier New', monospace;
+      font-size: 12.5px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 180px;
+      max-height: 460px;
+      overflow-y: auto;
+      color: var(--text);
+    }
+    .preview-empty {
+      color: var(--text-muted);
+      font-style: italic;
+      font-family: inherit;
+      font-size: 13px;
+    }
+
+    /* ── Tracker ─────────────────────────────────────── */
+    .tracker-note {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+    .input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .input-row input { flex: 1; }
+    .status-msg {
+      font-size: 12px;
+      margin-top: 5px;
+      min-height: 16px;
+      line-height: 1.4;
+    }
+    .status-msg.ok { color: var(--success); }
+    .status-msg.err { color: #DC2626; }
+    .token-saved-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--success);
+      background: #DCFCE7;
+      border-radius: 4px;
+      padding: 2px 7px;
+    }
+
+    @media (max-width: 1060px) {
+      .main { flex-direction: column; padding: 16px; }
+      .right-col { width: 100%; position: static; }
+      .cat-strip { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-top">
+    <div class="header-text">
+      <h1>Конструктор ТЗ</h1>
+      <p>CRM Plus AdTech — быстрое заведение задач на технических операторов</p>
+    </div>
+    <div class="cat-strip">
+      <div class="cat-item">
+        <img src="cat1.jpg" alt="кот за работой" />
+        <div class="cat-caption">я когда получила задачу</div>
+      </div>
+      <div class="cat-item">
+        <img src="cat2.jpg" alt="кот загружается" />
+        <div class="cat-caption">думаю над сегментом</div>
+      </div>
+      <div class="cat-item">
+        <img src="cat3.jpg" alt="кот удивлён" />
+        <div class="cat-caption">дедлайн сегодня??</div>
+      </div>
+      <div class="cat-item">
+        <img src="cat4.jpg" alt="кот устал" />
+        <div class="cat-caption">пятница после релиза</div>
+      </div>
+      <div class="cat-item">
+        <img src="cat5.png" alt="кот с деньгами" />
+        <div class="cat-caption">тз отправлено в трекер</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ── LEFT COLUMN ──────────────────────────────────── -->
+  <div class="left-col">
+
+    <div class="card">
+      <div class="card-title">Тип коммуникации</div>
+      <div class="type-grid" id="typeGrid"></div>
+    </div>
+
+    <div class="card" id="formCard" style="display:none">
+      <div class="card-title" id="formTitle"></div>
+      <div id="warnBanner" class="warning-banner" style="display:none">
+        <span>⚠️</span><span id="warnText"></span>
+      </div>
+      <div id="formFields"></div>
+      <div class="create-btn-wrap">
+        <button class="btn-create" onclick="buildTZ()">Создать ТЗ</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── RIGHT COLUMN ─────────────────────────────────── -->
+  <div class="right-col">
+
+    <div class="card">
+      <div class="preview-header">
+        <div class="preview-title">Готовое ТЗ</div>
+        <button class="btn btn-secondary" id="copyBtn" onclick="copyTZ()">Скопировать</button>
+      </div>
+      <div class="preview-box" id="previewBox">
+        <span class="preview-empty">Выберите тип коммуникации, заполните форму и нажмите «Создать ТЗ»</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Добавить в тикет Tracker</div>
+      <p class="tracker-note">Токен сохраняется в браузере один раз — потом вводить не надо.</p>
+
+      <div class="form-group">
+        <div class="form-label">OAuth-токен</div>
+        <div id="tokenSavedBadge" style="display:none; margin-bottom:8px">
+          <span class="token-saved-badge">✓ Токен сохранён</span>
+          <button class="btn btn-secondary" style="margin-left:8px; padding:3px 10px; font-size:12px" onclick="clearToken()">Сменить</button>
+        </div>
+        <div id="tokenInputRow">
+          <div class="input-row">
+            <input type="password" id="tokenInput" placeholder="y0_AgAAA..." />
+            <button class="btn btn-secondary" onclick="saveToken()">Сохранить</button>
+          </div>
+          <div id="tokenStatus" class="status-msg"></div>
+        </div>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0">
+        <div class="form-label">Номер задачи</div>
+        <div class="input-row">
+          <input type="text" id="ticketInput" placeholder="DIRECTMARKETING-1234" />
+          <button class="btn btn-primary" onclick="addToTracker()">Добавить</button>
+        </div>
+        <div id="trackerStatus" class="status-msg"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+//  SHARED HINTS
+// ════════════════════════════════════════════════════════════════
+
+const WEIGHT_HINTS = [{ text: 'Определить вес', url: 'https://docs.google.com/spreadsheets/d/1dsBmPNu_2tO0WTRnGGraiJzjhbXT_7g_/edit?gid=235916592#gid=235916592' }];
+const POLICY_HINTS = [{ text: 'Определить политику', url: 'https://docs.google.com/spreadsheets/d/1dsBmPNu_2tO0WTRnGGraiJzjhbXT_7g_/edit?gid=235916592#gid=235916592' }];
+const UTM_HINTS    = [{ text: 'Создать UTM', url: 'https://crm.plus.yandex-team.ru/utm-parameters?search=' }];
+const DL_HINTS     = [
+  { text: 'Как создать диплинк', url: 'https://wiki.yandex-team.ru/plet/loyalty/dokumentacija-dlja-vneshnix-potrebitelejj/formirovanie-ssylok/' },
+  { text: 'Конструктор диплинков', url: 'https://plet-selector-front-junk.s3-staff.mds.yandex.net/selector-deeplink-constructor/index.html' }
+];
+
+// ════════════════════════════════════════════════════════════════
+//  SHARED FIELD SETS
+// ════════════════════════════════════════════════════════════════
+
+const SHILDIK_BASE = [
+  { key: 'segment',   label: 'Сегмент',        type: 'textarea' },
+  { key: 'deeplink',  label: 'Диплинк',         type: 'text',   hints: DL_HINTS },
+  { key: 'priority',  label: 'Приоритет',       type: 'number' },
+  { key: 'show_cond', label: 'Условие показа',  type: 'text' },
+  { key: 'pub_from',  label: 'Публикация с',    type: 'date',   req: true },
+  { key: 'pub_to',    label: 'Публикация до',   type: 'date',   req: true },
+  { key: 'image',     label: 'Картинка',        type: 'text',   ph: 'Ссылка на Фигму' },
+  { key: 'text_ref',  label: 'Текст',           type: 'text',   ph: 'Ссылка на Фигму' }
+];
+
+const GO_FORMATS = [
+  'Сплэш', 'Турбокнопка', 'Пуш', 'Промобаннер в фиде', 'Фулскрин',
+  'Промокарточка', 'Объект на карте', 'Промоплашка в поездке',
+  'Промоплашка в селекторе', 'Онбординг-паранджа', 'Билетик', 'Промо-место'
+];
+
+const GO_WARNING = 'ЕСЛИ ОТПРАВКА НА МИНУСОВИКОВ — ОБЯЗАТЕЛЬНО НУЖНЫ РЕКЛАМНЫЕ ЕРИДЫ';
+
+// ════════════════════════════════════════════════════════════════
+//  TYPE CONFIG
+// ════════════════════════════════════════════════════════════════
+
+const TYPES = [
+  // ── EMAIL ────────────────────────────────────────────────────
+  {
+    id: 'email', label: 'Email', group: 'Рассылки',
+    fields: [
+      { key: 'segment',       label: 'Сегмент',             type: 'textarea', req: true },
+      { key: 'lkp',           label: 'ЛКП',                 type: 'number' },
+      { key: 'campaign_type', label: 'Тип кампании',        type: 'select', opts: ['Промо','Триггер','Сервисная'] },
+      { key: 'start',         label: 'Начало кампании',     type: 'datetime-local', req: true },
+      { key: 'end',           label: 'Конец кампании',      type: 'datetime-local', req: true },
+      { key: 'weight',        label: 'Вес',                 type: 'number', hints: WEIGHT_HINTS },
+      { key: 'repeat',        label: 'Повторяемость',       type: 'select', opts: ['разовая','регулярная','триггерное письмо'] },
+      { key: 'policy',        label: 'Проектная политика',  type: 'text',   hints: POLICY_HINTS },
+      {
+        key: 'glob_ctrl', label: 'Глобальный контроль', type: 'text',
+        note: 'Всегда ставим тег <code>global_control_email</code>'
+      },
+      { key: 'utm',           label: 'UTM',                 type: 'text',   hints: UTM_HINTS },
+      { key: 'layout',        label: 'Вёрстка',             type: 'layout' },
+      { key: 'subject',       label: 'Тема',                type: 'text',   req: true },
+      { key: 'preheader',     label: 'Прехедер',            type: 'text' }
+    ]
+  },
+
+  // ── SMS ──────────────────────────────────────────────────────
+  {
+    id: 'sms', label: 'SMS', group: 'Рассылки',
+    warning: 'ПЕРЕД ОТПРАВКОЙ СМС ВСЕГДА ДЕЛАЕМ ТЕСТ И ПРОВЕРЯЕМ КОЛ-ВО СИМВОЛОВ',
+    fields: [
+      { key: 'segment',       label: 'Сегмент',             type: 'textarea', req: true },
+      { key: 'text',          label: 'Текст',               type: 'textarea', req: true, counter: true },
+      { key: 'url',           label: 'Ссылка',              type: 'text',   ph: 'https://sp.yandex.ru/...' },
+      { key: 'utm',           label: 'UTM',                 type: 'text',   hints: UTM_HINTS },
+      { key: 'lkp',           label: 'ЛКП',                 type: 'number' },
+      { key: 'campaign_type', label: 'Тип кампании',        type: 'select', opts: ['Промо','Триггер','Сервисная'] },
+      { key: 'start',         label: 'Начало кампании',     type: 'datetime-local', req: true },
+      { key: 'end',           label: 'Конец кампании',      type: 'datetime-local', req: true },
+      { key: 'weight',        label: 'Вес',                 type: 'number', hints: WEIGHT_HINTS },
+      { key: 'repeat',        label: 'Повторяемость',       type: 'select', opts: ['разовая','регулярная'] },
+      { key: 'policy',        label: 'Проектная политика',  type: 'text',   hints: POLICY_HINTS },
+      {
+        key: 'glob_ctrl', label: 'Глобальный контроль', type: 'text',
+        note: 'Всегда ставим тег <code>global_control_sms</code>'
+      }
+    ]
+  },
+
+  // ── TG BOT ───────────────────────────────────────────────────
+  {
+    id: 'tg', label: 'TG Bot', group: 'Рассылки',
+    fields: [
+      { key: 'segment',       label: 'Сегмент',       type: 'textarea', req: true },
+      { key: 'start',         label: 'Начало кампании', type: 'datetime-local', req: true },
+      { key: 'end',           label: 'Конец кампании',  type: 'datetime-local', req: true },
+      { key: 'lkp',           label: 'ЛКП',             type: 'number' },
+      { key: 'campaign_type', label: 'Тип кампании',    type: 'select', opts: ['разовая','регулярная'] },
+      { key: 'weight',        label: 'Вес кампании',    type: 'number' },
+      { key: 'url',           label: 'Ссылка',          type: 'text',   ph: 'https://...' },
+      { key: 'visual',        label: 'Виж',             type: 'text',   ph: 'Ссылка на Фигму' },
+      { key: 'text_ref',      label: 'Текст',           type: 'text',   ph: 'Ссылка на Фигму' },
+      { key: 'utm',           label: 'UTM',             type: 'text',   hints: UTM_HINTS }
+    ]
+  },
+
+  // ── ШИЛЬДИК ГО ───────────────────────────────────────────────
+  {
+    id: 'shildik-go', label: 'Шильдик Го', group: 'Шильдики',
+    fields: [
+      SHILDIK_BASE[0], // segment
+      SHILDIK_BASE[1], // deeplink
+      SHILDIK_BASE[2], // priority
+      { key: 'screen', label: 'Экран показа в Го', type: 'text', hint: 'Всегда ставим main' },
+      ...SHILDIK_BASE.slice(3)
+    ]
+  },
+
+  // ── ШИЛЬДИК МУЗЫКА/КНИГИ ─────────────────────────────────────
+  { id: 'shildik-music-books', label: 'Шильдик Музыка/Книги', group: 'Шильдики', fields: SHILDIK_BASE },
+
+  // ── ШИЛЬДИК ЕДАДИЛ ───────────────────────────────────────────
+  { id: 'shildik-edadil', label: 'Шильдик Едадил', group: 'Шильдики', fields: SHILDIK_BASE },
+
+  // ── ЯНДЕКС GO ────────────────────────────────────────────────
+  {
+    id: 'go', label: 'Яндекс Go', group: 'Яндекс Go',
+    warning: GO_WARNING,
+    fields: [
+      {
+        key: 'formats', label: 'Форматы', type: 'multicheck', opts: GO_FORMATS, req: true,
+        hint: 'Подробнее с форматами можно ознакомиться',
+        hintLink: { text: 'тут', url: 'https://www.figma.com/design/cIk07B5Zx4BXytlbOhonPd/UPDATE-%D0%AF%D0%BD%D0%B4%D0%B5%D0%BA%D1%81-Go-%7C-%D0%9A%D0%BE%D0%BC%D0%BC%D1%83%D0%BD%D0%B8%D0%BA%D0%B0%D1%86%D0%B8%D1%8F-%D0%B2-%D0%BF%D1%80%D0%B8%D0%BB%D0%BE%D0%B6%D0%B5%D0%BD%D0%B8%D0%B8--Copy-?node-id=86999-110313&t=BU9uNM8iV8jeTpdU-0' }
+      },
+      { key: 'priority',  label: 'Приоритет',             type: 'number', hint: 'Стандартный — 1, если не согласовали иной с лидом CRM Яндекс Go' },
+      { key: 'start',     label: 'Начало кампании',       type: 'date',   req: true },
+      { key: 'end',       label: 'Конец кампании',        type: 'date',   req: true },
+      { key: 'deeplink',  label: 'Диплинк',               type: 'text',   hints: DL_HINTS },
+      { key: 'creatives', label: 'Креативы с переводами', type: 'text',   ph: 'Ссылка на Фигму' },
+      { key: 'segment',   label: 'Сегмент',               type: 'textarea' }
+    ]
+  }
+];
+
+// ════════════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════════════
+
+let currentType    = null;
+let formState      = {};
+let layoutFileName = '';
+let layoutContent  = '';
+
+// ════════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════════
+
+function init() {
+  renderTypeGrid();
+  loadTokenUI();
+}
+
+function renderTypeGrid() {
+  const grid = document.getElementById('typeGrid');
+  grid.innerHTML = TYPES.map(t =>
+    `<button class="type-btn" id="btn-${t.id}" onclick="selectType('${t.id}')">
+       <span class="grp">${t.group}</span>${t.label}
+     </button>`
+  ).join('');
+}
+
+function selectType(id) {
+  currentType    = TYPES.find(t => t.id === id);
+  formState      = {};
+  layoutFileName = '';
+  layoutContent  = '';
+
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + id).classList.add('active');
+
+  const fc = document.getElementById('formCard');
+  fc.style.display = 'block';
+  document.getElementById('formTitle').textContent = 'ТЗ на ' + currentType.label;
+
+  const wb = document.getElementById('warnBanner');
+  if (currentType.warning) {
+    wb.style.display = 'flex';
+    document.getElementById('warnText').textContent = currentType.warning;
+  } else {
+    wb.style.display = 'none';
+  }
+
+  renderForm();
+
+  document.getElementById('previewBox').innerHTML =
+    '<span class="preview-empty">Заполните форму и нажмите «Создать ТЗ»</span>';
+
+  fc.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ════════════════════════════════════════════════════════════════
+//  FORM RENDERING
+// ════════════════════════════════════════════════════════════════
+
+function renderForm() {
+  const container = document.getElementById('formFields');
+  container.innerHTML = currentType.fields.map(renderField).join('');
+
+  currentType.fields.forEach(f => {
+    if (f.type === 'multicheck') {
+      const cbs = document.querySelectorAll(`input[name="${f.key}"]`);
+      cbs.forEach(cb => cb.addEventListener('change', () => {
+        formState[f.key] = Array.from(cbs).filter(c => c.checked).map(c => c.value);
+      }));
+    } else if (f.type === 'layout') {
+      // handled by onLayoutFile
+    } else {
+      const el = document.getElementById('fld-' + f.key);
+      if (!el) return;
+      el.addEventListener('input', () => {
+        formState[f.key] = el.value;
+        if (f.counter) updateSmsCounter(f.key, el.value);
+      });
+      if (f.counter) updateSmsCounter(f.key, '');
+    }
+  });
+}
+
+function renderField(f) {
+  const reqMark = f.req ? '<span class="req">*</span>' : '';
+  let control = '';
+
+  if (f.type === 'textarea') {
+    control = `<textarea id="fld-${f.key}" placeholder="${f.ph || ''}" rows="3"></textarea>`;
+  } else if (f.type === 'select') {
+    const opts = (f.opts || []).map(o => `<option value="${o}">${o}</option>`).join('');
+    control = `<select id="fld-${f.key}">${opts}</select>`;
+  } else if (f.type === 'multicheck') {
+    const items = (f.opts || []).map(o =>
+      `<label class="check-item">
+        <input type="checkbox" name="${f.key}" value="${o}" />${o}
+      </label>`
+    ).join('');
+    control = `<div class="check-grid">${items}</div>`;
+  } else if (f.type === 'layout') {
+    control = `
+      <textarea id="fld-layout" placeholder="Вставьте вёрстку или прикрепите файл ниже" rows="3"></textarea>
+      <label class="file-upload-area" onclick="document.getElementById('layoutFileInput').click()">
+        <input type="file" id="layoutFileInput" accept=".zip,.html" onchange="onLayoutFile(event)" />
+        <button type="button" class="file-upload-btn">Прикрепить файл</button>
+        <span class="file-upload-name" id="layoutFileName">ZIP или HTML...</span>
+      </label>`;
+  } else {
+    control = `<input type="${f.type || 'text'}" id="fld-${f.key}" placeholder="${f.ph || ''}" />`;
+  }
+
+  const counterHtml = f.counter
+    ? `<div class="sms-counter" id="cnt-${f.key}">
+         <span class="seg-chars">0 символов</span>
+         <span class="seg-badge">—</span>
+       </div>` : '';
+
+  let hintParts = [];
+  if (f.hint && f.hintLink) {
+    hintParts.push(`<span>${f.hint} <a href="${f.hintLink.url}" target="_blank">${f.hintLink.text}</a></span>`);
+  } else if (f.hint) {
+    hintParts.push(`<span>${f.hint}</span>`);
+  }
+  if (f.hints) f.hints.forEach(h => hintParts.push(`<a href="${h.url}" target="_blank">↗ ${h.text}</a>`));
+  const hintHtml = hintParts.length ? `<div class="field-hint">${hintParts.join('')}</div>` : '';
+
+  const noteHtml = f.note ? `<div class="field-note">${f.note}</div>` : '';
+
+  return `<div class="form-group">
+    <div class="form-label">${f.label} ${reqMark}</div>
+    ${control}
+    ${counterHtml}
+    ${hintHtml}
+    ${noteHtml}
+  </div>`;
+}
+
+function updateSmsCounter(key, val) {
+  const el = document.getElementById('cnt-' + key);
+  if (!el) return;
+  const n = val.length;
+  const charsEl = el.querySelector('.seg-chars');
+  const badgeEl = el.querySelector('.seg-badge');
+  charsEl.textContent = n + ' символов';
+  el.className = 'sms-counter';
+  if (n === 0) {
+    badgeEl.textContent = '—';
+  } else if (n <= 70) {
+    badgeEl.textContent = '1 сегмент · 5 руб.';
+    el.classList.add('seg1');
+  } else if (n <= 134) {
+    badgeEl.textContent = '2 сегмента · 10 руб.';
+    el.classList.add('seg2');
+  } else {
+    badgeEl.textContent = '3+ сегмента · 15+ руб.';
+    el.classList.add('seg3');
+  }
+}
+
+function onLayoutFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  layoutFileName = file.name;
+  document.getElementById('layoutFileName').textContent = file.name;
+  document.getElementById('layoutFileName').classList.add('has-file');
+
+  if (file.name.endsWith('.html')) {
+    const reader = new FileReader();
+    reader.onload = e => { layoutContent = e.target.result; };
+    reader.readAsText(file);
+  } else {
+    layoutContent = '';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  BUILD TZ
+// ════════════════════════════════════════════════════════════════
+
+function buildTZ() {
+  if (!currentType) return;
+
+  const lines = ['ТЗ на ' + currentType.label, ''];
+
+  currentType.fields.forEach(f => {
+    if (f.type === 'multicheck') {
+      const selected = Array.isArray(formState[f.key]) ? formState[f.key] : [];
+      if (selected.length) lines.push(f.label + ': ' + selected.join(', '));
+      return;
+    }
+
+    if (f.type === 'layout') {
+      const textVal = (document.getElementById('fld-layout') || {}).value || '';
+      if (layoutFileName) {
+        lines.push('Вёрстка: ' + layoutFileName);
+        if (layoutContent) {
+          lines.push('');
+          lines.push(layoutContent);
+          lines.push('');
+        }
+      } else if (textVal) {
+        lines.push('Вёрстка:');
+        lines.push(textVal);
+      }
+      return;
+    }
+
+    const raw = formState[f.key];
+    if (raw === undefined || raw === '') return;
+
+    let val = raw;
+    if (f.type === 'datetime-local' || f.type === 'date') val = fmtDt(raw);
+
+    if (f.type === 'textarea' && val.includes('\n')) {
+      lines.push(f.label + ':');
+      lines.push(val);
+    } else {
+      lines.push(f.label + ': ' + val);
+    }
+  });
+
+  document.getElementById('previewBox').textContent = lines.join('\n');
+}
+
+function fmtDt(val) {
+  if (!val) return '';
+  try {
+    const [datePart, timePart] = val.split('T');
+    const [y, m, d] = datePart.split('-');
+    if (timePart) {
+      const [h, min] = timePart.split(':');
+      return `${d}.${m}.${y} в ${h}:${min}`;
+    }
+    return `${d}.${m}.${y}`;
+  } catch { return val; }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  COPY
+// ════════════════════════════════════════════════════════════════
+
+function copyTZ() {
+  const box = document.getElementById('previewBox');
+  const text = box.textContent;
+  if (!text || box.querySelector('.preview-empty')) return;
+
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '✓ Скопировано';
+    btn.className = 'btn btn-success';
+    setTimeout(() => {
+      btn.textContent = 'Скопировать';
+      btn.className = 'btn btn-secondary';
+    }, 2000);
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+//  TRACKER
+// ════════════════════════════════════════════════════════════════
+
+function saveToken() {
+  const val = document.getElementById('tokenInput').value.trim();
+  if (!val) return;
+  localStorage.setItem('tz_tracker_token', val);
+  document.getElementById('tokenInput').value = '';
+  loadTokenUI();
+  setStatus('tokenStatus', '✓ Сохранено', 'ok');
+}
+
+function clearToken() {
+  localStorage.removeItem('tz_tracker_token');
+  loadTokenUI();
+}
+
+function loadTokenUI() {
+  const saved = localStorage.getItem('tz_tracker_token');
+  document.getElementById('tokenSavedBadge').style.display = saved ? 'block' : 'none';
+  document.getElementById('tokenInputRow').style.display   = saved ? 'none' : 'block';
+}
+
+async function addToTracker() {
+  const token = localStorage.getItem('tz_tracker_token');
+  const key   = document.getElementById('ticketInput').value.trim();
+  const box   = document.getElementById('previewBox');
+  const text  = box.textContent;
+
+  if (!token)                            return setStatus('trackerStatus', 'Сначала сохраните токен', 'err');
+  if (!key)                              return setStatus('trackerStatus', 'Введите номер задачи', 'err');
+  if (!text || box.querySelector('.preview-empty')) return setStatus('trackerStatus', 'Сначала нажмите «Создать ТЗ»', 'err');
+
+  setStatus('trackerStatus', 'Отправляем...', '');
+
+  try {
+    const resp = await fetch(`https://st-api.yandex-team.ru/v2/issues/${key}/comments`, {
+      method: 'POST',
+      headers: { 'Authorization': 'OAuth ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    });
+
+    if (resp.ok) {
+      setStatus('trackerStatus', '✓ ТЗ добавлено в ' + key, 'ok');
+    } else {
+      const err = await resp.json().catch(() => ({}));
+      setStatus('trackerStatus', 'Ошибка ' + resp.status + ': ' + (err.message || 'попробуйте ещё раз'), 'err');
+    }
+  } catch {
+    setStatus('trackerStatus', 'Ошибка сети — проверьте VPN. Можно скопировать ТЗ и вставить вручную.', 'err');
+  }
+}
+
+function setStatus(id, msg, cls) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status-msg ' + cls;
+}
+
+// ════════════════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
