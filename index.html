@@ -653,20 +653,7 @@
       </div>
 
       <div class="form-group" id="newTicketGroup" style="display:none">
-        <div class="form-label">Forms OAuth-токен</div>
-        <div id="formsTokenSavedBadge" style="display:none; margin-bottom:8px">
-          <span class="token-saved-badge">✓ Токен сохранён</span>
-          <button class="btn btn-secondary" style="margin-left:8px; padding:3px 10px; font-size:12px" onclick="clearFormsToken()">Сменить</button>
-        </div>
-        <div id="formsTokenInputRow">
-          <div class="input-row">
-            <input type="password" id="formsTokenInput" placeholder="y0_AgAAA..." />
-            <button class="btn btn-secondary" onclick="saveFormsToken()">Сохранить</button>
-          </div>
-          <div class="field-hint"><span>Токен для Yandex Forms (отдельный от токена Трекера выше)</span></div>
-        </div>
-
-        <div class="form-group" style="margin-top:14px">
+        <div class="form-group" style="margin-top:0">
           <div class="form-label">Название задачи</div>
           <input type="text" id="newTicketSummary" placeholder="например: акция июль" />
         </div>
@@ -1283,23 +1270,6 @@ function loadTokenUI() {
   const saved = localStorage.getItem('tz_tracker_token');
   document.getElementById('tokenSavedBadge').style.display = saved ? 'block' : 'none';
   document.getElementById('tokenInputRow').style.display   = saved ? 'none' : 'block';
-
-  const savedForms = localStorage.getItem('tz_forms_token');
-  document.getElementById('formsTokenSavedBadge').style.display = savedForms ? 'block' : 'none';
-  document.getElementById('formsTokenInputRow').style.display   = savedForms ? 'none' : 'block';
-}
-
-function saveFormsToken() {
-  const val = document.getElementById('formsTokenInput').value.trim();
-  if (!val) return;
-  localStorage.setItem('tz_forms_token', val);
-  document.getElementById('formsTokenInput').value = '';
-  loadTokenUI();
-}
-
-function clearFormsToken() {
-  localStorage.removeItem('tz_forms_token');
-  loadTokenUI();
 }
 
 function setTrackerMode(mode) {
@@ -1403,14 +1373,12 @@ async function findCreatedTickets(title, expectedCount) {
 
 async function createAndAddToTracker() {
   const trackerToken = localStorage.getItem('tz_tracker_token');
-  const formsToken    = localStorage.getItem('tz_forms_token');
   const title = document.getElementById('newTicketSummary').value.trim();
   const desc  = document.getElementById('newTicketDesc').value.trim();
   const box   = document.getElementById('previewBox');
   const text  = box.textContent;
 
   if (!trackerToken) return setStatus('trackerStatus', 'Сначала сохраните токен Трекера', 'err');
-  if (!formsToken)   return setStatus('trackerStatus', 'Сначала сохраните токен Forms', 'err');
   if (!title)        return setStatus('trackerStatus', 'Введите название задачи', 'err');
   if (!desc)         return setStatus('trackerStatus', 'Введите короткое описание задачи', 'err');
   if (!getCampaignStartValue()) return setStatus('trackerStatus', 'Сначала укажите «Начало кампании» в форме слева', 'err');
@@ -1422,25 +1390,23 @@ async function createAndAddToTracker() {
 
   try {
     setStatus('trackerStatus', 'Отправляем заявку через форму...', '');
-    const resp = await fetch(`https://forms-api.yandex-team.ru/v3/surveys/${FORMS_SURVEY_ID}/form/`, {
+    // Forms API не отдаёт CORS-заголовки, а сабмит формы не требует токена —
+    // шлём как «простой» cross-origin запрос (no-cors): без Authorization,
+    // Content-Type: text/plain, чтобы браузер не резал его сам, ответ не читаем,
+    // а проверяем успех отдельным поиском созданного тикета в Трекере ниже.
+    await fetch(`https://forms-api.yandex-team.ru/v3/surveys/${FORMS_SURVEY_ID}/form/`, {
       method: 'POST',
-      headers: { 'Authorization': 'OAuth ' + formsToken, 'Content-Type': 'application/json' },
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain' },
       body: JSON.stringify(built.answer)
     });
-
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ([]));
-      const msg = Array.isArray(err) ? err.map(e => (e.loc || []).join('.') + ': ' + e.msg).join('; ') : (err.message || '');
-      setStatus('trackerStatus', 'Ошибка формы ' + resp.status + ': ' + msg, 'err');
-      return;
-    }
 
     const expectedCount = (currentType.id === 'shildik-music-books') ? 2 : 1;
     setStatus('trackerStatus', 'Заявка отправлена, ищем созданный тикет...', '');
     const keys = await findCreatedTickets(title, expectedCount);
 
     if (!keys.length) {
-      setStatus('trackerStatus', '✓ Заявка отправлена в форму, но тикет пока не нашёлся автоматически — проверьте очередь DIRECTMARKETING и добавьте ТЗ в него через вкладку «В существующий тикет»', 'ok');
+      setStatus('trackerStatus', 'Заявка отправлена, но тикет не нашёлся в DIRECTMARKETING за 9 секунд — либо он ещё не проиндексировался, либо форма не приняла данные. Проверьте очередь вручную и, если тикета нет, добавьте ТЗ через вкладку «В существующий тикет»', 'err');
       return;
     }
 
