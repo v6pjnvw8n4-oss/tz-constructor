@@ -1280,9 +1280,18 @@ function setTrackerMode(mode) {
   document.getElementById('newTicketGroup').style.display      = isNew ? 'block' : 'none';
 }
 
+function extractTicketKey(raw) {
+  let val = raw.trim();
+  // если вставили ссылку вида https://st.yandex-team.ru/DIRECTMARKETING-1234 — берём только ключ
+  val = val.replace(/^https?:\/\/[^/]+\//, '').split(/[/?#]/)[0];
+  return val.trim();
+}
+
 async function addToTracker() {
-  const key = document.getElementById('ticketInput').value.trim();
-  if (!key) return setStatus('trackerStatus', 'Введите номер задачи', 'err');
+  const raw = document.getElementById('ticketInput').value.trim();
+  if (!raw) return setStatus('trackerStatus', 'Введите номер задачи', 'err');
+  const key = extractTicketKey(raw);
+  if (!key) return setStatus('trackerStatus', 'Не удалось распознать номер задачи', 'err');
   await postTZToIssue(key);
 }
 
@@ -1371,6 +1380,26 @@ async function findCreatedTickets(title, expectedCount) {
   return [];
 }
 
+async function reassignAuthor(key) {
+  const token = localStorage.getItem('tz_tracker_token');
+  const BASE = 'https://st-api.yandex-team.ru/v2';
+  const AUTH = { 'Authorization': 'OAuth ' + token };
+
+  try {
+    const meResp = await fetch(`${BASE}/myself`, { headers: AUTH });
+    if (!meResp.ok) return;
+    const me = await meResp.json();
+    if (!me.login) return;
+    await fetch(`${BASE}/issues/${key}`, {
+      method: 'PATCH',
+      headers: { ...AUTH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ createdBy: me.login })
+    });
+  } catch {
+    // не критично — тикет уже создан, просто останется автор-робот
+  }
+}
+
 async function createAndAddToTracker() {
   const trackerToken = localStorage.getItem('tz_tracker_token');
   const title = document.getElementById('newTicketSummary').value.trim();
@@ -1410,12 +1439,14 @@ async function createAndAddToTracker() {
       return;
     }
 
+    setStatus('trackerStatus', 'Тикет найден, переставляем автора и добавляем ТЗ...', '');
     for (const key of keys) {
+      await reassignAuthor(key);
       await postTZToIssue(key, true);
     }
 
-    const links = keys.map(k => k).join(', ');
-    setStatus('trackerStatus', `✓ Тикет(ы) созданы через форму: ${links}, ТЗ добавлено`, 'ok');
+    const links = keys.map(ticketLink).join(', ');
+    setStatusHtml('trackerStatus', `✓ Тикет(ы) созданы через форму: ${links}, ТЗ добавлено`, 'ok');
   } catch (e) {
     setStatus('trackerStatus', 'Ошибка сети: ' + (e && e.message ? e.message : e) + ' — если в консоли браузера (F12) видно "CORS"/"blocked", проверьте VPN или обратитесь к разработчику. Можно скопировать ТЗ и вставить вручную.', 'err');
   }
@@ -1466,8 +1497,9 @@ async function postTZToIssue(key, wasCreated) {
 
     if (resp.ok) {
       const fileNote = layoutFile ? ` + файл «${layoutFileName}»` : '';
-      const createdNote = wasCreated ? `✓ Тикет ${key} создан, ТЗ${fileNote} добавлено` : `✓ ТЗ добавлено в ${key}${fileNote}`;
-      setStatus('trackerStatus', createdNote, 'ok');
+      const link = ticketLink(key);
+      const createdNote = wasCreated ? `✓ Тикет ${link} создан, ТЗ${fileNote} добавлено` : `✓ ТЗ добавлено в ${link}${fileNote}`;
+      setStatusHtml('trackerStatus', createdNote, 'ok');
     } else {
       const err = await resp.json().catch(() => ({}));
       setStatus('trackerStatus', 'Ошибка ' + resp.status + ': ' + (err.message || 'попробуйте ещё раз'), 'err');
@@ -1481,6 +1513,16 @@ function setStatus(id, msg, cls) {
   const el = document.getElementById(id);
   el.textContent = msg;
   el.className = 'status-msg ' + cls;
+}
+
+function setStatusHtml(id, html, cls) {
+  const el = document.getElementById(id);
+  el.innerHTML = html;
+  el.className = 'status-msg ' + cls;
+}
+
+function ticketLink(key) {
+  return `<a href="https://st.yandex-team.ru/${key}" target="_blank" style="color:inherit; font-weight:700; text-decoration:underline">${key}</a>`;
 }
 
 // ════════════════════════════════════════════════════════════════
