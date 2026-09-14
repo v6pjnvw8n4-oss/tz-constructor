@@ -665,8 +665,8 @@
 
         <div id="newTicketExtra"></div>
 
-        <button class="btn btn-primary" style="width:100%" onclick="createAndAddToTracker()">Создать тикет через форму</button>
-        <div class="field-hint"><span>Тикет заведётся через форму «Коммуникация | Сегмент» в очередь DIRECTMARKETING — с той же автоматикой (включая парный pull-тикет для шильдиков Музыка/Книги), ТЗ и файл вёрстки допишутся комментарием</span></div>
+        <button class="btn btn-primary" style="width:100%" onclick="createAndAddToTracker()">Создать тикет в Tracker</button>
+        <div class="field-hint"><span>Тикет создаётся напрямую в очереди DIRECTMARKETING от имени владельца сохранённого токена. Для шильдиков Музыка/Книги дополнительно создаётся дочерний pull-тикет.</span></div>
       </div>
 
       <div id="trackerStatus" class="status-msg"></div>
@@ -806,6 +806,14 @@ const FORM_WHITENING_OPTS = [
   { value: '9008985630430950', label: 'Да' },
   { value: '1786375878385',    label: 'Нет' }
 ];
+
+const DM_FIELDS = {
+  type: '628229d8f6547744f4c28ef9--typeOfCommunication',
+  periodicity: '628229d8f6547744f4c28ef9--periodicity',
+  experiment: '628229d8f6547744f4c28ef9--experiment',
+  customer: '628229d8f6547744f4c28ef9--customer',
+  placement: '628229d8f6547744f4c28ef9--placementService'
+};
 
 const FORM_CFO_OPTS = [
   { value: '9008958580673798', label: 'Плюс Лояльность.Bizdev&Growth: MSMS51' },
@@ -1232,8 +1240,8 @@ function applyDtValue(key, val, hasTime) {
   if (inputEl) inputEl.value = fmtDt(val);
 }
 
-// Для «Создать тикет через форму» шильдики поддержаны только по одному за раз
-// (как и было раньше), поэтому здесь сводим текущий выбор к одному TYPES-объекту
+// Для создания тикета шильдики поддержаны по одному за раз, поэтому здесь
+// сводим текущий выбор к одному TYPES-объекту
 function activeTypeForTracker() {
   if (shildikMode) {
     return selectedShildiks.length === 1 ? TYPES.find(t => t.id === selectedShildiks[0]) : null;
@@ -1296,7 +1304,7 @@ function renderNewTicketExtra() {
       <div class="form-group">
         <div class="form-label">Сервис размещения шильдика</div>
         <div class="check-grid">${items}</div>
-        <div class="field-hint"><span>Выбор триггерит парный pull-тикет автоматически — так же, как в форме</span></div>
+        <div class="field-hint"><span>Для Музыки и Книг дочерний pull-тикет создаётся автоматически</span></div>
       </div>`;
   } else {
     el.innerHTML = '';
@@ -1847,113 +1855,116 @@ function computeDeadline() {
   return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
 }
 
-function buildFormsAnswer(title, description) {
+function selectedOptionLabel(id) {
+  const el = document.getElementById(id);
+  if (!el || !el.value) return '';
+  return el.options[el.selectedIndex] ? el.options[el.selectedIndex].text : el.value;
+}
+
+function trackerPeriodicity() {
+  const raw = String(formState.repeat || formState.campaign_type || 'разовая').toLocaleLowerCase('ru-RU');
+  return (raw.includes('период') || raw.includes('регуляр')) ? 'Регулярная' : 'Разовая';
+}
+
+function buildDirectIssueSpec(title, description) {
   const type = activeTypeForTracker();
   if (!type) return null;
-  const taskType = FORM_TASK_TYPE[type.id];
-  if (!taskType) return null;
-
-  const answer = {
-    'answer_short_text_55018055': title,
-    'answer_choices_55018077': ['1760110132346'], // AdTech
-    'answer_one_answer_9008946990867636': [taskType],
-    'answer_one_answer_9008946991861448': ['9008946991861458'], // Новая задача
-    'answer_long_text_9008947169444920': description,
-  };
-
   const deadline = computeDeadline();
-  if (deadline) answer['answer_date_9008946993186502'] = deadline;
-
   const isShildik = type.id.startsWith('shildik-');
   const isGo = type.id === 'go';
+  const typeNames = { email: 'Email', sms: 'Sms', tg: 'Telegram', go: 'Go' };
+  const typeName = isShildik ? 'Шильдик' : typeNames[type.id];
+  if (!typeName) return null;
 
-  if (isShildik) {
-    if (type.id === 'shildik-music-books') {
-      const sel = document.querySelector('input[name="nt-shildik-service"]:checked');
-      answer['answer_choices_9008968777534712'] = [sel ? sel.value : FORM_SHILDIK_MB_OPTS[0].value];
-    } else {
-      answer['answer_choices_9008968777534712'] = [FORM_SHILDIK_SERVICE[type.id]];
-    }
-  }
+  const periodicity = (!isShildik && !isGo) ? trackerPeriodicity() : '';
+  const summary = periodicity ? `${periodicity}|${typeName}|${title}` : `${typeName}|${title}`;
+  const lines = [
+    `⚙️ **Тип задачи**:\n${typeName}`,
+    '**Что сделать?**:\nНовая задача'
+  ];
 
-  if (!isShildik && !isGo) {
-    const commType = FORM_REPEAT_TO_COMM[formState['repeat']] || FORM_REPEAT_TO_COMM['разовая'];
-    answer['id-question-55018385'] = [commType];
-    answer['answer_choices_9008961268309824'] = [FORM_SENDING_SERVICE_SP];
-  }
+  if (periodicity) lines.push(`🕑 **Тип коммуникации**:\n${periodicity}`);
 
   if (type.id === 'email' || type.id === 'sms') {
-    const whitening = document.getElementById('nt-whitening').value;
+    const whitening = selectedOptionLabel('nt-whitening');
     if (!whitening) return { error: 'Укажите, нужно ли обеление для Email/SMS' };
-    answer['answer_choices_9008985630430940'] = [whitening];
+    lines.push(`💌 **Нужно обеление для Email/Sms?**:\n${whitening}`);
   }
 
   if (type.id === 'sms') {
-    const cfo = document.getElementById('nt-cfo').value;
-    const service = document.getElementById('nt-service').value;
-    const project = document.getElementById('nt-project').value;
-    const task = document.getElementById('nt-task').value;
-    if (!service || !project || !task) return { error: 'Заполните ЦФО/Сервис/Проект/Задачу' };
-    if (cfo) answer['answer_dropdown_9008958580673788'] = [cfo];
-    answer['id-question-55562984'] = [service];
-    answer['id-question-55563372'] = [project];
-    answer['id-question-55563374'] = [task];
+    const cfo = selectedOptionLabel('nt-cfo');
+    const service = selectedOptionLabel('nt-service');
+    const project = selectedOptionLabel('nt-project');
+    const task = selectedOptionLabel('nt-task');
+    if (!cfo || !service || !project || !task) return { error: 'Заполните ЦФО/Сервис/Проект/Задачу' };
+    lines.splice(3, 0,
+      `**ЦФО**:\n${cfo}`,
+      `**Сервис**:\n${service}`,
+      `**Проект**:\n${project}`,
+      `**Задача**:\n${task}`
+    );
   }
 
-  return { answer };
-}
-
-async function findCreatedTickets(title, expectedCount) {
-  const token = localStorage.getItem('tz_tracker_token');
-  const BASE = 'https://st-api.yandex-team.ru/v2';
-  const AUTH = { 'Authorization': 'OAuth ' + token };
-
-  for (let attempt = 0; attempt < 15; attempt++) {
-    let resp;
-    try {
-      resp = await fetch(`${BASE}/issues/_search?perPage=20`, {
-        method: 'POST',
-        headers: { ...AUTH, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filter: { queue: 'DIRECTMARKETING' }, order: '-createdAt' })
-      });
-    } catch (_) {
-      throw new Error('Потеряно соединение с Tracker API. Проверьте VPN/внутреннюю сеть');
-    }
-    if (resp.status === 401) throw new Error('Tracker отклонил OAuth-токен — сохраните новый токен');
-    if (resp.status === 403) throw new Error('Токен рабочий, но нет доступа к очереди DIRECTMARKETING');
-    if (resp.ok) {
-      const issues = await resp.json();
-      const matches = issues.filter(i => i.summary && i.summary.includes(title));
-      if (matches.length >= expectedCount) return matches.slice(0, expectedCount).map(i => i.key);
-    }
-    await new Promise(r => setTimeout(r, 2000));
+  let placement = '';
+  if (isShildik) {
+    if (type.id === 'shildik-go') placement = 'Go';
+    if (type.id === 'shildik-edadil') placement = 'Едадил';
+    if (type.id === 'shildik-music-books') placement = rawField(type.id, 'badge_service');
+    if (!placement) return { error: 'Выберите сервис размещения шильдика' };
+    lines.push(`**Сервис размещения шильдика**:\n${placement}`);
   }
-  return [];
+
+  lines.push('🆎 **Эксперимент?**:\nНет', description);
+  const issue = {
+    queue: 'DIRECTMARKETING',
+    summary,
+    description: lines.join('\n\n'),
+    type: 'task',
+    priority: 'normal',
+    deadline,
+    [DM_FIELDS.type]: typeName,
+    [DM_FIELDS.experiment]: 'Нет'
+  };
+  if (periodicity) issue[DM_FIELDS.periodicity] = periodicity;
+  return { issue, typeName, placement, needsPull: type.id === 'shildik-music-books' };
 }
 
-async function reassignAuthor(key) {
-  const token = localStorage.getItem('tz_tracker_token');
+async function createTrackerIssue(issue, token) {
   const BASE = 'https://st-api.yandex-team.ru/v2';
-  const AUTH = { 'Authorization': 'OAuth ' + token };
-
+  let response;
   try {
-    const meResp = await fetch(`${BASE}/myself`, { headers: AUTH });
-    if (!meResp.ok) return { ok: false, error: `не удалось определить пользователя (${meResp.status})` };
-    const me = await meResp.json();
-    if (!me.login) return { ok: false, error: 'Tracker не вернул логин пользователя' };
-    const updateResp = await fetch(`${BASE}/issues/${key}`, {
-      method: 'PATCH',
-      headers: { ...AUTH, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ author: me.login })
+    response = await fetch(`${BASE}/issues/`, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'OAuth ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(issue)
     });
-    if (!updateResp.ok) {
-      const error = await updateResp.json().catch(() => ({}));
-      return { ok: false, error: error.message || `ошибка ${updateResp.status}` };
-    }
-    return { ok: true, login: me.login };
-  } catch (error) {
-    return { ok: false, error: error && error.message ? error.message : String(error) };
+  } catch (_) {
+    throw new Error('Не удалось подключиться к Tracker API. Проверьте VPN/внутреннюю сеть');
   }
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 401) throw new Error('Tracker отклонил OAuth-токен — сохраните новый токен');
+  if (response.status === 403) throw new Error('Токен рабочий, но нет права создавать задачи в DIRECTMARKETING');
+  if (!response.ok) throw new Error(data.message || data.errors?.join(', ') || `Tracker вернул ошибку ${response.status}`);
+  if (!data.key) throw new Error('Tracker создал задачу, но не вернул её ключ');
+  return data;
+}
+
+function buildPullIssue(mainIssue, mainKey, placement) {
+  return {
+    queue: 'DIRECTMARKETING',
+    summary: `Pull |${mainIssue.summary}`,
+    description: `⚙️ **Тип задачи:**\nPull\n\n**Что сделать?:**\nНужно продублировать шильдик ${placement} из бункера **в EP**.\nТЗ в связанном тикете ${mainKey}`,
+    type: 'task',
+    priority: 'normal',
+    deadline: mainIssue.deadline,
+    parent: mainKey,
+    [DM_FIELDS.type]: 'Pull',
+    [DM_FIELDS.customer]: 'AdTech',
+    [DM_FIELDS.placement]: [placement]
+  };
 }
 
 function renderCreatedTicketButtons(keys) {
@@ -1979,8 +1990,8 @@ async function createAndAddToTracker() {
 
   if (shildikMode && selectedShildiks.length !== 1) {
     return setStatus('trackerStatus', selectedShildiks.length === 0
-      ? 'Выберите один шильдик, чтобы создать тикет через форму'
-      : 'Форма создания тикета поддерживает только один шильдик за раз — оставьте выбранным один', 'err');
+      ? 'Выберите один шильдик, чтобы создать тикет'
+      : 'Создание тикета поддерживает один шильдик за раз — оставьте выбранным один', 'err');
   }
   if (!trackerToken) return setStatus('trackerStatus', 'Сначала сохраните токен Трекера', 'err');
   if (!title)        return setStatus('trackerStatus', 'Введите название задачи', 'err');
@@ -1988,53 +1999,38 @@ async function createAndAddToTracker() {
   if (!getCampaignStartValue()) return setStatus('trackerStatus', 'Сначала укажите «Начало кампании» в форме слева', 'err');
   if (!text || box.querySelector('.preview-empty')) return setStatus('trackerStatus', 'Сначала нажмите «Создать ТЗ»', 'err');
 
-  const built = buildFormsAnswer(title, desc);
-  if (!built) return setStatus('trackerStatus', 'Этот тип пока не поддержан для создания через форму', 'err');
+  const built = buildDirectIssueSpec(title, desc);
+  if (!built) return setStatus('trackerStatus', 'Этот тип пока не поддержан для создания тикета', 'err');
   if (built.error) return setStatus('trackerStatus', built.error, 'err');
 
+  const createdKeys = [];
   try {
     setStatus('trackerStatus', 'Проверяем подключение к Tracker...', '');
     const trackerCheck = await checkTrackerAccess(trackerToken);
     if (!trackerCheck.ok) return setStatus('trackerStatus', trackerCheck.error, 'err');
 
-    setStatus('trackerStatus', 'Отправляем заявку через форму...', '');
-    // Forms API не отдаёт CORS-заголовки, а сабмит формы не требует токена —
-    // шлём как «простой» cross-origin запрос (no-cors): без Authorization,
-    // Content-Type: text/plain, чтобы браузер не резал его сам, ответ не читаем,
-    // а проверяем успех отдельным поиском созданного тикета в Трекере ниже.
-    await fetch(`https://forms-api.yandex-team.ru/v3/surveys/${FORMS_SURVEY_ID}/form/`, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(built.answer)
-    });
+    setStatus('trackerStatus', 'Создаём тикет в DIRECTMARKETING...', '');
+    const main = await createTrackerIssue(built.issue, trackerToken);
+    createdKeys.push(main.key);
 
-    const expectedCount = (activeTypeForTracker().id === 'shildik-music-books') ? 2 : 1;
-    setStatus('trackerStatus', 'Заявка отправлена, ищем созданный тикет...', '');
-    const keys = await findCreatedTickets(title, expectedCount);
-
-    if (!keys.length) {
-      setStatus('trackerStatus', 'Заявка отправлена, но тикет не нашёлся в DIRECTMARKETING за 30 секунд — форма могла не принять данные. Проверьте очередь вручную и, если тикета нет, добавьте ТЗ через вкладку «В существующий тикет»', 'err');
-      return;
+    if (built.needsPull) {
+      setStatus('trackerStatus', 'Основной тикет создан, создаём дочерний pull-тикет...', '');
+      const pull = await createTrackerIssue(buildPullIssue(built.issue, main.key, built.placement), trackerToken);
+      createdKeys.push(pull.key);
     }
 
-    setStatus('trackerStatus', 'Тикет найден, переставляем автора и добавляем ТЗ...', '');
-    const authorWarnings = [];
-    for (const key of keys) {
-      const authorResult = await reassignAuthor(key);
-      if (!authorResult.ok) authorWarnings.push(`${key}: ${authorResult.error}`);
+    setStatus('trackerStatus', 'Тикет создан, добавляем ТЗ...', '');
+    for (const key of createdKeys) {
       await postTZToIssue(key, true);
     }
 
-    const links = keys.map(ticketLink).join(', ');
-    renderCreatedTicketButtons(keys);
-    if (authorWarnings.length) {
-      setStatusHtml('trackerStatus', `Тикет(ы) созданы: ${links}, ТЗ добавлено. Автор не изменён: ${authorWarnings.join('; ')}`, 'err');
-    } else {
-      setStatusHtml('trackerStatus', `✓ Тикет(ы) созданы через форму: ${links}, автор изменён на текущего пользователя, ТЗ добавлено`, 'ok');
-    }
+    const links = createdKeys.map(ticketLink).join(', ');
+    renderCreatedTicketButtons(createdKeys);
+    setStatusHtml('trackerStatus', `✓ Тикет(ы) созданы напрямую: ${links}. Автор — ${trackerCheck.display || trackerCheck.login}. ТЗ добавлено`, 'ok');
   } catch (e) {
-    setStatus('trackerStatus', (e && e.message ? e.message : String(e)) + '. Можно скопировать ТЗ и вставить вручную.', 'err');
+    if (createdKeys.length) renderCreatedTicketButtons(createdKeys);
+    const partial = createdKeys.length ? ` Уже создано: ${createdKeys.join(', ')}.` : '';
+    setStatus('trackerStatus', (e && e.message ? e.message : String(e)) + partial + ' Можно скопировать ТЗ и вставить вручную.', 'err');
   }
 }
 
