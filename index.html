@@ -1756,13 +1756,16 @@ async function addToMediaPlan() {
 //  TRACKER
 // ════════════════════════════════════════════════════════════════
 
-function saveToken() {
+async function saveToken() {
   const val = document.getElementById('tokenInput').value.trim();
   if (!val) return;
+  setStatus('tokenStatus', 'Проверяем подключение к Tracker...', '');
+  const check = await checkTrackerAccess(val);
+  if (!check.ok) return setStatus('tokenStatus', check.error, 'err');
   localStorage.setItem('tz_tracker_token', val);
   document.getElementById('tokenInput').value = '';
   loadTokenUI();
-  setStatus('tokenStatus', '✓ Сохранено', 'ok');
+  setStatus('tokenStatus', `✓ Токен сохранён · ${check.display || check.login}`, 'ok');
 }
 
 function clearToken() {
@@ -1774,6 +1777,30 @@ function loadTokenUI() {
   const saved = localStorage.getItem('tz_tracker_token');
   document.getElementById('tokenSavedBadge').style.display = saved ? 'block' : 'none';
   document.getElementById('tokenInputRow').style.display   = saved ? 'none' : 'block';
+}
+
+async function checkTrackerAccess(token) {
+  try {
+    const response = await fetch('https://st-api.yandex-team.ru/v2/myself', {
+      headers: { 'Authorization': 'OAuth ' + token }
+    });
+    if (response.status === 401) {
+      return { ok: false, error: 'Токен Tracker не принят — сохраните новый OAuth-токен' };
+    }
+    if (response.status === 403) {
+      return { ok: false, error: 'Токен рабочий, но у пользователя нет доступа к Tracker' };
+    }
+    if (!response.ok) {
+      return { ok: false, error: `Tracker API вернул ошибку ${response.status}` };
+    }
+    const me = await response.json();
+    return { ok: true, login: me.login, display: me.display };
+  } catch (_) {
+    return {
+      ok: false,
+      error: 'Не удалось подключиться к Tracker API. Проверьте VPN/внутреннюю сеть и откройте st.yandex-team.ru в этом браузере'
+    };
+  }
 }
 
 function setTrackerMode(mode) {
@@ -1882,11 +1909,18 @@ async function findCreatedTickets(title, expectedCount) {
   const AUTH = { 'Authorization': 'OAuth ' + token };
 
   for (let attempt = 0; attempt < 15; attempt++) {
-    const resp = await fetch(`${BASE}/issues/_search?perPage=20`, {
-      method: 'POST',
-      headers: { ...AUTH, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ filter: { queue: 'DIRECTMARKETING' }, order: '-createdAt' })
-    });
+    let resp;
+    try {
+      resp = await fetch(`${BASE}/issues/_search?perPage=20`, {
+        method: 'POST',
+        headers: { ...AUTH, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filter: { queue: 'DIRECTMARKETING' }, order: '-createdAt' })
+      });
+    } catch (_) {
+      throw new Error('Потеряно соединение с Tracker API. Проверьте VPN/внутреннюю сеть');
+    }
+    if (resp.status === 401) throw new Error('Tracker отклонил OAuth-токен — сохраните новый токен');
+    if (resp.status === 403) throw new Error('Токен рабочий, но нет доступа к очереди DIRECTMARKETING');
     if (resp.ok) {
       const issues = await resp.json();
       const matches = issues.filter(i => i.summary && i.summary.includes(title));
@@ -1959,6 +1993,10 @@ async function createAndAddToTracker() {
   if (built.error) return setStatus('trackerStatus', built.error, 'err');
 
   try {
+    setStatus('trackerStatus', 'Проверяем подключение к Tracker...', '');
+    const trackerCheck = await checkTrackerAccess(trackerToken);
+    if (!trackerCheck.ok) return setStatus('trackerStatus', trackerCheck.error, 'err');
+
     setStatus('trackerStatus', 'Отправляем заявку через форму...', '');
     // Forms API не отдаёт CORS-заголовки, а сабмит формы не требует токена —
     // шлём как «простой» cross-origin запрос (no-cors): без Authorization,
@@ -1996,7 +2034,7 @@ async function createAndAddToTracker() {
       setStatusHtml('trackerStatus', `✓ Тикет(ы) созданы через форму: ${links}, автор изменён на текущего пользователя, ТЗ добавлено`, 'ok');
     }
   } catch (e) {
-    setStatus('trackerStatus', 'Ошибка сети: ' + (e && e.message ? e.message : e) + ' — если в консоли браузера (F12) видно "CORS"/"blocked", проверьте VPN или обратитесь к разработчику. Можно скопировать ТЗ и вставить вручную.', 'err');
+    setStatus('trackerStatus', (e && e.message ? e.message : String(e)) + '. Можно скопировать ТЗ и вставить вручную.', 'err');
   }
 }
 
