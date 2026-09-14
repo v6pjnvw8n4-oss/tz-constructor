@@ -670,6 +670,65 @@
       </div>
 
       <div id="trackerStatus" class="status-msg"></div>
+      <div id="createdTicketActions" style="display:none; margin-top:12px"></div>
+    </div>
+
+    <div class="card" id="mediaPlanCard">
+      <div class="card-title">Добавить в медиаплан</div>
+      <p class="tracker-note">Один канал или формат = одна строка. Данные из ТЗ подставятся автоматически.</p>
+
+      <div class="form-group">
+        <div class="form-label">Название коммуникации <span class="req">*</span></div>
+        <input type="text" id="mediaTitle" placeholder="Подставится из названия задачи или можно ввести вручную" />
+      </div>
+
+      <div id="mediaMainFields">
+        <div class="form-group">
+          <div class="form-label">Стрим <span class="req">*</span></div>
+          <select id="mediaStream">
+            <option value="">— выберите лист —</option>
+            <option value="B2C_Sel">B2C_Sel</option>
+            <option value="B2C_Gift">B2C_Gift</option>
+            <option value="B2B_Opt">B2B_Opt</option>
+            <option value="СП">СП</option>
+            <option value="Акции">Акции</option>
+            <option value="РК + Партнёры">РК + Партнёры</option>
+            <option value="SMS">SMS</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Кто запускает <span class="req">*</span></div>
+          <select id="mediaOwner">
+            <option value="">—</option>
+            <option>Вика</option>
+            <option>Наташа</option>
+            <option>Лиза Т.</option>
+            <option>Лиза С.</option>
+            <option>Марк</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <div class="form-label">Целевое действие <span class="req">*</span></div>
+          <input type="text" id="mediaTargetAction" placeholder="например: переход, покупка, активация" />
+        </div>
+      </div>
+
+      <details style="margin:14px 0">
+        <summary style="cursor:pointer; color:var(--text-muted); font-size:13px">Подключение Google Sheets</summary>
+        <div class="form-group" style="margin:10px 0 0">
+          <div class="form-label">URL опубликованного Apps Script</div>
+          <div class="input-row">
+            <input type="url" id="mediaEndpoint" placeholder="https://script.google.com/macros/s/.../exec" />
+            <button class="btn btn-secondary" type="button" onclick="saveMediaEndpoint()">Сохранить</button>
+          </div>
+          <div class="field-hint"><span>Настраивается один раз по инструкции из комплекта.</span></div>
+        </div>
+      </details>
+
+      <button class="btn btn-primary" style="width:100%" onclick="addToMediaPlan()">Добавить в медиаплан</button>
+      <div id="mediaPlanStatus" class="status-msg"></div>
     </div>
 
   </div>
@@ -742,6 +801,11 @@ const FORM_REPEAT_TO_COMM = {
 };
 
 const FORM_SENDING_SERVICE_SP = '9008961268309834'; // Свои Плюсы
+
+const FORM_WHITENING_OPTS = [
+  { value: '9008985630430950', label: 'Да' },
+  { value: '1786375878385',    label: 'Нет' }
+];
 
 const FORM_CFO_OPTS = [
   { value: '9008958580673798', label: 'Плюс Лояльность.Bizdev&Growth: MSMS51' },
@@ -885,7 +949,13 @@ const TYPES = [
   },
 
   // ── ШИЛЬДИК МУЗЫКА/КНИГИ ─────────────────────────────────────
-  { id: 'shildik-music-books', label: 'Шильдик Музыка/Книги', group: 'Шильдики', fields: SHILDIK_BASE },
+  {
+    id: 'shildik-music-books', label: 'Шильдик Музыка/Книги', group: 'Шильдики',
+    fields: [
+      { key: 'badge_service', label: 'Сервис шильдика', type: 'select', emptyOpt: true, opts: ['Музыка', 'Книги'], req: true },
+      ...SHILDIK_BASE
+    ]
+  },
 
   // ── ШИЛЬДИК ЕДАДИЛ ───────────────────────────────────────────
   { id: 'shildik-edadil', label: 'Шильдик Едадил', group: 'Шильдики', fields: SHILDIK_BASE },
@@ -907,18 +977,38 @@ const TYPES = [
       { key: 'creatives', label: 'Креативы с переводами', type: 'text',   ph: 'Ссылка на Фигму' },
       { key: 'segment',   label: 'Сегмент',               type: 'textarea' }
     ]
+  },
+
+  // ── СЛАЙДЕР ──────────────────────────────────────────────────
+  {
+    id: 'slider', label: 'Слайдер', group: 'Прочее',
+    fields: [
+      { key: 'segment',  label: 'Сегмент',           type: 'textarea', req: true },
+      { key: 'figma',    label: 'Фигма с креативом',  type: 'text',     ph: 'Ссылка на Фигму' },
+      { key: 'url',      label: 'Ссылка',             type: 'text',     ph: 'https://...' },
+      { key: 'priority', label: 'Приоритет',          type: 'number' },
+      { key: 'screen',   label: 'Экран',              type: 'select', emptyOpt: true, opts: ['1','2','3','4','5','6'], req: true },
+      { key: 'start',    label: 'Начало',             type: 'date', req: true },
+      { key: 'end',      label: 'Конец',              type: 'date', req: true },
+      { key: 'service',  label: 'Сервис',             type: 'text', req: true, ph: 'например: Музыка, Go, Свои Плюсы' }
+    ]
   }
 ];
+
+// Шильдики схлопнуты в один пункт в сетке типов — выбираются чекбоксами внутри
+const SHILDIK_IDS = ['shildik-go', 'shildik-music-books', 'shildik-edadil'];
 
 // ════════════════════════════════════════════════════════════════
 //  STATE
 // ════════════════════════════════════════════════════════════════
 
-let currentType    = null;
-let formState      = {};
-let layoutFileName = '';
-let layoutContent  = '';
-let layoutFile     = null;
+let currentType     = null;
+let formState        = {};
+let layoutFileName  = '';
+let layoutContent   = '';
+let layoutFile       = null;
+let shildikMode      = false;   // true когда выбран сгруппированный пункт «Шильдики»
+let selectedShildiks = [];      // ids выбранных шильдиков внутри группы
 
 // ════════════════════════════════════════════════════════════════
 //  INIT
@@ -927,19 +1017,50 @@ let layoutFile     = null;
 function init() {
   renderTypeGrid();
   loadTokenUI();
+  loadMediaEndpoint();
+  document.getElementById('newTicketSummary').addEventListener('input', syncMediaTitleFromTask);
+  document.getElementById('mediaTitle').addEventListener('input', e => {
+    if (e.isTrusted) e.currentTarget.dataset.manual = '1';
+  });
+  updateMediaPlanUI();
 }
 
 function renderTypeGrid() {
   const grid = document.getElementById('typeGrid');
-  grid.innerHTML = TYPES.map(t =>
-    `<button class="type-btn" id="btn-${t.id}" onclick="selectType('${t.id}')">
-       <span class="grp">${t.group}</span>${t.label}
-     </button>`
-  ).join('');
+  const buttons = [];
+  let shildikRendered = false;
+
+  TYPES.forEach(t => {
+    if (SHILDIK_IDS.includes(t.id)) {
+      if (shildikRendered) return;
+      shildikRendered = true;
+      buttons.push(
+        `<button class="type-btn" id="btn-shildik-group" onclick="selectShildikGroup()">
+           <span class="grp">Шильдики</span>Шильдик
+         </button>`
+      );
+      return;
+    }
+    buttons.push(
+      `<button class="type-btn" id="btn-${t.id}" onclick="selectType('${t.id}')">
+         <span class="grp">${t.group}</span>${t.label}
+       </button>`
+    );
+  });
+
+  grid.innerHTML = buttons.join('');
+}
+
+// Составной id поля: без префикса — как раньше, с префиксом (id шильдика) —
+// чтобы у каждого шильдика внутри группы было своё независимое состояние/DOM-id
+function fid(prefix, key) {
+  return prefix ? prefix + '__' + key : key;
 }
 
 function selectType(id) {
-  currentType    = TYPES.find(t => t.id === id);
+  currentType     = TYPES.find(t => t.id === id);
+  shildikMode      = false;
+  selectedShildiks = [];
   formState      = {};
   layoutFileName = '';
   layoutContent  = '';
@@ -962,6 +1083,7 @@ function selectType(id) {
 
   renderForm();
   renderNewTicketExtra();
+  updateMediaPlanUI();
 
   document.getElementById('previewBox').innerHTML =
     '<span class="preview-empty">Заполните форму и нажмите «Создать ТЗ»</span>';
@@ -969,13 +1091,184 @@ function selectType(id) {
   fc.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+function selectShildikGroup() {
+  currentType      = null;
+  shildikMode      = true;
+  selectedShildiks = [];
+  formState      = {};
+  layoutFileName = '';
+  layoutContent  = '';
+  layoutFile     = null;
+
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-shildik-group').classList.add('active');
+
+  const fc = document.getElementById('formCard');
+  fc.style.display = 'block';
+  document.getElementById('formTitle').textContent = 'ТЗ на Шильдики';
+  document.getElementById('warnBanner').style.display = 'none';
+
+  renderShildikPicker();
+  renderNewTicketExtra();
+  updateMediaPlanUI();
+
+  document.getElementById('previewBox').innerHTML =
+    '<span class="preview-empty">Выберите шильдики, заполните формы и нажмите «Создать ТЗ»</span>';
+
+  fc.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderShildikPicker() {
+  const container = document.getElementById('formFields');
+  const items = SHILDIK_IDS.map(id => {
+    const t = TYPES.find(x => x.id === id);
+    return `<label class="check-item">
+      <input type="checkbox" id="pick-${id}" onchange="toggleShildikPick('${id}')" />${t.label}
+    </label>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="form-group">
+      <div class="form-label">Какие шильдики делаем?</div>
+      <div class="check-grid">${items}</div>
+    </div>
+    <div id="shildikSections"></div>`;
+}
+
+function toggleShildikPick(id) {
+  const checked = document.getElementById('pick-' + id).checked;
+  if (checked && !selectedShildiks.includes(id)) selectedShildiks.push(id);
+  if (!checked) selectedShildiks = selectedShildiks.filter(x => x !== id);
+
+  renderShildikSections();
+  renderNewTicketExtra();
+  updateMediaPlanUI();
+  buildTZ();
+}
+
+function renderShildikSections() {
+  const el = document.getElementById('shildikSections');
+  if (!el) return;
+
+  if (!selectedShildiks.length) { el.innerHTML = ''; return; }
+
+  const sections = selectedShildiks.map(subId => {
+    const t = TYPES.find(x => x.id === subId);
+    const fieldsHtml = t.fields.map(f => renderField(f, subId)).join('');
+    return `<div class="card" style="margin:14px 0 0; box-shadow:none">
+      <div class="card-title">${t.label}</div>
+      ${fieldsHtml}
+    </div>`;
+  }).join('');
+
+  const copyBtn = selectedShildiks.length > 1
+    ? `<button type="button" class="btn btn-secondary" style="width:100%; margin-top:14px" onclick="copyShildikToAll()">Скопировать для всех шильдиков</button>`
+    : '';
+
+  el.innerHTML = sections + copyBtn;
+
+  selectedShildiks.forEach(subId => {
+    const t = TYPES.find(x => x.id === subId);
+    bindFieldEvents(t.fields, subId);
+  });
+}
+
+// Берёт первое непустое значение поля (по ключу) среди выбранных шильдиков
+// и подставляет его во все остальные шильдики, у которых есть такое же поле
+function copyShildikToAll() {
+  if (selectedShildiks.length < 2) return;
+
+  const allKeys = new Set();
+  selectedShildiks.forEach(subId => {
+    TYPES.find(t => t.id === subId).fields.forEach(f => allKeys.add(f.key));
+  });
+
+  allKeys.forEach(key => {
+    let sourceVal;
+    for (const subId of selectedShildiks) {
+      const t = TYPES.find(x => x.id === subId);
+      if (!t.fields.some(f => f.key === key)) continue;
+      const val = formState[fid(subId, key)];
+      if (val !== undefined && val !== '') { sourceVal = val; break; }
+    }
+    if (sourceVal === undefined) return;
+
+    selectedShildiks.forEach(subId => {
+      const t = TYPES.find(x => x.id === subId);
+      const f = t.fields.find(f => f.key === key);
+      if (!f) return;
+      const compound = fid(subId, key);
+      formState[compound] = sourceVal;
+
+      if (f.type === 'date' || f.type === 'datetime-local') {
+        applyDtValue(compound, sourceVal, f.type === 'datetime-local');
+      } else {
+        const inputEl = document.getElementById('fld-' + compound);
+        if (inputEl) inputEl.value = sourceVal;
+      }
+    });
+  });
+
+  buildTZ();
+}
+
+function applyDtValue(key, val, hasTime) {
+  if (!val) return;
+  const [datePart, timePart] = val.split('T');
+  const [y, m, d] = datePart.split('-').map(Number);
+  dtState[key] = Object.assign(dtState[key] || {}, {
+    year: y, month: m - 1, day: d, viewYear: y, viewMonth: m - 1, hasTime
+  });
+  if (hasTime) {
+    if (timePart) {
+      const [h, min] = timePart.split(':').map(Number);
+      dtState[key].hour = h; dtState[key].minute = min;
+    } else {
+      dtState[key].hour = dtState[key].hour ?? 9;
+      dtState[key].minute = dtState[key].minute ?? 0;
+    }
+  }
+  const inputEl = document.getElementById('fld-' + key);
+  if (inputEl) inputEl.value = fmtDt(val);
+}
+
+// Для «Создать тикет через форму» шильдики поддержаны только по одному за раз
+// (как и было раньше), поэтому здесь сводим текущий выбор к одному TYPES-объекту
+function activeTypeForTracker() {
+  if (shildikMode) {
+    return selectedShildiks.length === 1 ? TYPES.find(t => t.id === selectedShildiks[0]) : null;
+  }
+  return currentType;
+}
+
 function renderNewTicketExtra() {
   const el = document.getElementById('newTicketExtra');
-  if (!el || !currentType) return;
+  if (!el) return;
 
-  if (currentType.id === 'sms') {
+  if (shildikMode) {
+    if (selectedShildiks.length !== 1) {
+      el.innerHTML = selectedShildiks.length > 1
+        ? `<div class="field-hint"><span>Форма создания тикета поддерживает только один шильдик за раз — оставьте выбранным один, остальные добавьте отдельно через «В существующий тикет»</span></div>`
+        : '';
+      return;
+    }
+  }
+
+  const type = activeTypeForTracker();
+  if (!type) { el.innerHTML = ''; return; }
+
+  const whiteningField = `
+    <div class="form-group">
+      <div class="form-label">Нужно обеление для Email/SMS? <span class="req">*</span></div>
+      <select id="nt-whitening">
+        <option value="">—</option>
+        ${FORM_WHITENING_OPTS.map(o => `<option value="${o.value}">${o.label}</option>`).join('')}
+      </select>
+    </div>`;
+
+  if (type.id === 'sms') {
     const opts = list => list.map(o => `<option value="${o.value}">${o.label}</option>`).join('');
-    el.innerHTML = `
+    el.innerHTML = whiteningField + `
       <div class="form-group">
         <div class="form-label">ЦФО</div>
         <select id="nt-cfo"><option value="">—</option>${opts(FORM_CFO_OPTS)}</select>
@@ -992,9 +1285,12 @@ function renderNewTicketExtra() {
         <div class="form-label">Задача</div>
         <select id="nt-task"><option value="">—</option>${opts(FORM_TASK_OPTS)}</select>
       </div>`;
-  } else if (currentType.id === 'shildik-music-books') {
+  } else if (type.id === 'email') {
+    el.innerHTML = whiteningField;
+  } else if (type.id === 'shildik-music-books') {
+    const chosenService = rawField('shildik-music-books', 'badge_service');
     const items = FORM_SHILDIK_MB_OPTS.map((o, i) =>
-      `<label class="check-item"><input type="radio" name="nt-shildik-service" value="${o.value}" ${i === 0 ? 'checked' : ''}/>${o.label}</label>`
+      `<label class="check-item"><input type="radio" name="nt-shildik-service" value="${o.value}" ${(chosenService ? o.label === chosenService : i === 0) ? 'checked' : ''}/>${o.label}</label>`
     ).join('');
     el.innerHTML = `
       <div class="form-group">
@@ -1013,13 +1309,19 @@ function renderNewTicketExtra() {
 
 function renderForm() {
   const container = document.getElementById('formFields');
-  container.innerHTML = currentType.fields.map(renderField).join('');
+  container.innerHTML = currentType.fields.map(f => renderField(f, '')).join('');
+  bindFieldEvents(currentType.fields, '');
+}
 
-  currentType.fields.forEach(f => {
+// prefix пустой — обычный тип коммуникации; prefix = id шильдика — один из
+// шильдиков внутри сгруппированного пункта «Шильдик» (см. selectShildikGroup)
+function bindFieldEvents(fields, prefix) {
+  fields.forEach(f => {
+    const key = fid(prefix, f.key);
     if (f.type === 'multicheck') {
-      const cbs = document.querySelectorAll(`input[name="${f.key}"]`);
+      const cbs = document.querySelectorAll(`input[name="${key}"]`);
       cbs.forEach(cb => cb.addEventListener('change', () => {
-        formState[f.key] = Array.from(cbs).filter(c => c.checked).map(c => c.value);
+        formState[key] = Array.from(cbs).filter(c => c.checked).map(c => c.value);
       }));
     } else if (f.type === 'repeat') {
       const sel = document.getElementById('fld-repeat');
@@ -1035,27 +1337,29 @@ function renderForm() {
     } else if (f.type === 'layout') {
       // handled by onLayoutFile
     } else {
-      const el = document.getElementById('fld-' + f.key);
+      const el = document.getElementById('fld-' + key);
       if (!el) return;
       el.addEventListener('input', () => {
-        formState[f.key] = el.value;
-        if (f.counter) updateSmsCounter(f.key, el.value);
+        formState[key] = el.value;
+        if (f.counter) updateSmsCounter(key, el.value);
+        if (key === 'shildik-music-books__badge_service') renderNewTicketExtra();
       });
-      if (f.counter) updateSmsCounter(f.key, '');
+      if (f.counter) updateSmsCounter(key, '');
     }
   });
 }
 
-function renderField(f) {
+function renderField(f, prefix) {
+  const key = fid(prefix, f.key);
   const reqMark = f.req ? '<span class="req">*</span>' : '';
   let control = '';
 
   if (f.type === 'textarea') {
-    control = `<textarea id="fld-${f.key}" placeholder="${f.ph || ''}" rows="3"></textarea>`;
+    control = `<textarea id="fld-${key}" placeholder="${f.ph || ''}" rows="3"></textarea>`;
   } else if (f.type === 'select') {
     const emptyOpt = f.emptyOpt ? `<option value="">—</option>` : '';
     const opts = (f.opts || []).map(o => `<option value="${o}">${o}</option>`).join('');
-    control = `<select id="fld-${f.key}">${emptyOpt}${opts}</select>`;
+    control = `<select id="fld-${key}">${emptyOpt}${opts}</select>`;
   } else if (f.type === 'repeat') {
     control = `
       <select id="fld-repeat" onchange="onRepeatChange(this.value)">
@@ -1070,7 +1374,7 @@ function renderField(f) {
   } else if (f.type === 'multicheck') {
     const items = (f.opts || []).map(o =>
       `<label class="check-item">
-        <input type="checkbox" name="${f.key}" value="${o}" />${o}
+        <input type="checkbox" name="${key}" value="${o}" />${o}
       </label>`
     ).join('');
     control = `<div class="check-grid">${items}</div>`;
@@ -1083,13 +1387,13 @@ function renderField(f) {
         <span class="file-upload-name" id="layoutFileName">ZIP или HTML...</span>
       </label>`;
   } else if (f.type === 'datetime-local' || f.type === 'date') {
-    control = renderDTPicker(f);
+    control = renderDTPicker(f, key);
   } else {
-    control = `<input type="${f.type || 'text'}" id="fld-${f.key}" placeholder="${f.ph || ''}" />`;
+    control = `<input type="${f.type || 'text'}" id="fld-${key}" placeholder="${f.ph || ''}" />`;
   }
 
   const counterHtml = f.counter
-    ? `<div class="sms-counter" id="cnt-${f.key}">
+    ? `<div class="sms-counter" id="cnt-${key}">
          <span class="seg-chars">0 символов</span>
          <span class="seg-badge">—</span>
        </div>` : '';
@@ -1158,13 +1462,39 @@ function onLayoutFile(event) {
 // ════════════════════════════════════════════════════════════════
 
 function buildTZ() {
+  if (shildikMode) { buildShildikTZ(); return; }
   if (!currentType) return;
 
   const lines = ['### **ТЗ на ' + currentType.label + '**', ''];
+  lines.push(...buildFieldLines(currentType.fields, ''));
+  document.getElementById('previewBox').textContent = lines.join('\n');
+}
 
-  currentType.fields.forEach(f => {
+function buildShildikTZ() {
+  if (!selectedShildiks.length) {
+    document.getElementById('previewBox').innerHTML =
+      '<span class="preview-empty">Выберите хотя бы один шильдик</span>';
+    return;
+  }
+
+  const blocks = selectedShildiks.map(subId => {
+    const t = TYPES.find(x => x.id === subId);
+    const lines = ['### **ТЗ на ' + t.label + '**', ''];
+    lines.push(...buildFieldLines(t.fields, subId));
+    return lines.join('\n');
+  });
+
+  document.getElementById('previewBox').textContent = blocks.join('\n\n---\n\n');
+}
+
+function buildFieldLines(fields, prefix) {
+  const lines = [];
+
+  fields.forEach(f => {
+    const key = fid(prefix, f.key);
+
     if (f.type === 'multicheck') {
-      const selected = Array.isArray(formState[f.key]) ? formState[f.key] : [];
+      const selected = Array.isArray(formState[key]) ? formState[key] : [];
       if (selected.length) lines.push(f.label + ': ' + selected.join(', '));
       return;
     }
@@ -1196,7 +1526,7 @@ function buildTZ() {
       return;
     }
 
-    const raw = formState[f.key];
+    const raw = formState[key];
     if (raw === undefined || raw === '') return;
 
     let val = raw;
@@ -1212,7 +1542,7 @@ function buildTZ() {
     }
   });
 
-  document.getElementById('previewBox').textContent = lines.join('\n');
+  return lines;
 }
 
 function fmtDt(val) {
@@ -1246,6 +1576,180 @@ function copyTZ() {
       btn.className = 'btn btn-secondary';
     }, 2000);
   });
+}
+
+// ════════════════════════════════════════════════════════════════
+//  MEDIA PLAN
+// ════════════════════════════════════════════════════════════════
+
+const MEDIA_ENDPOINT_KEY = 'tz_media_plan_endpoint';
+
+function loadMediaEndpoint() {
+  document.getElementById('mediaEndpoint').value = localStorage.getItem(MEDIA_ENDPOINT_KEY) || '';
+}
+
+function saveMediaEndpoint() {
+  const endpoint = document.getElementById('mediaEndpoint').value.trim();
+  if (!endpoint) {
+    localStorage.removeItem(MEDIA_ENDPOINT_KEY);
+    return setStatus('mediaPlanStatus', 'Адрес подключения удалён', '');
+  }
+  let endpointUrl;
+  try { endpointUrl = new URL(endpoint); } catch (_) {}
+  if (!endpointUrl || endpointUrl.protocol !== 'https:' || endpointUrl.hostname !== 'script.google.com' || !endpointUrl.pathname.endsWith('/exec')) {
+    return setStatus('mediaPlanStatus', 'Нужен URL опубликованного Apps Script, который заканчивается на /exec', 'err');
+  }
+  localStorage.setItem(MEDIA_ENDPOINT_KEY, endpoint);
+  setStatus('mediaPlanStatus', '✓ Подключение сохранено', 'ok');
+}
+
+function syncMediaTitleFromTask() {
+  const source = document.getElementById('newTicketSummary').value.trim();
+  const target = document.getElementById('mediaTitle');
+  if (target.dataset.manual !== '1') target.value = source;
+}
+
+function updateMediaPlanUI() {
+  const slider = !shildikMode && currentType && currentType.id === 'slider';
+  const mainFields = document.getElementById('mediaMainFields');
+  if (mainFields) mainFields.style.display = slider ? 'none' : 'block';
+
+  const stream = document.getElementById('mediaStream');
+  if (!slider && currentType && currentType.id === 'sms' && stream && !stream.value) {
+    stream.value = 'SMS';
+  }
+}
+
+function rawField(prefix, key) {
+  return formState[fid(prefix || '', key)] || '';
+}
+
+function mediaDates(prefix) {
+  const start = rawField(prefix, 'start') || rawField(prefix, 'pub_from');
+  const end = rawField(prefix, 'end') || rawField(prefix, 'pub_to');
+  return {
+    start: start ? String(start).split('T')[0] : '',
+    end: end ? String(end).split('T')[0] : ''
+  };
+}
+
+function shortenSegment(value) {
+  const clean = String(value || '').replace(/\s+/g, ' ').trim();
+  if (clean.length <= 180) return clean;
+  const firstSentence = clean.split(/[.!?]\s/)[0].trim();
+  if (firstSentence.length >= 35 && firstSentence.length <= 180) return firstSentence;
+  return clean.slice(0, 177).trimEnd() + '…';
+}
+
+function buildMainMediaRows(title, owner, targetAction) {
+  const rows = [];
+  const add = (type, prefix, channel, sender) => {
+    const dates = mediaDates(prefix);
+    rows.push({
+      title,
+      owner,
+      start: dates.start,
+      end: dates.end,
+      channel,
+      sender,
+      segment: shortenSegment(rawField(prefix, 'segment')),
+      targetAction
+    });
+  };
+
+  if (shildikMode) {
+    selectedShildiks.forEach(id => {
+      let sender = 'Едадил';
+      if (id === 'shildik-go') sender = 'Go';
+      if (id === 'shildik-music-books') sender = rawField(id, 'badge_service');
+      add(TYPES.find(t => t.id === id), id, 'шильдик', sender);
+    });
+    return rows;
+  }
+
+  if (!currentType || currentType.id === 'slider') return rows;
+  if (currentType.id === 'go') {
+    const formats = Array.isArray(formState.formats) ? formState.formats : [];
+    formats.forEach(format => add(currentType, '', String(format).toLocaleLowerCase('ru-RU'), 'Go'));
+    return rows;
+  }
+
+  const channels = { email: 'email', sms: 'sms', tg: 'tg bot' };
+  add(currentType, '', channels[currentType.id] || currentType.label.toLocaleLowerCase('ru-RU'), 'Свои Плюсы');
+  return rows;
+}
+
+function validateMediaRows(rows) {
+  if (!rows.length) return 'Не удалось определить канал — сначала заполните ТЗ';
+  for (const row of rows) {
+    if (!row.start || !row.end) return 'В ТЗ не заполнены даты начала или окончания';
+    if (!row.channel) return 'В ТЗ не выбран канал или формат';
+    if (!row.sender) return 'Для шильдика Музыка/Книги выберите конкретный сервис';
+    if (!row.segment) return 'В ТЗ не заполнен сегмент';
+  }
+  return '';
+}
+
+async function addToMediaPlan() {
+  const endpoint = localStorage.getItem(MEDIA_ENDPOINT_KEY) || document.getElementById('mediaEndpoint').value.trim();
+  const taskTitle = document.getElementById('newTicketSummary').value.trim();
+  const title = document.getElementById('mediaTitle').value.trim() || taskTitle;
+
+  if (!endpoint) return setStatus('mediaPlanStatus', 'Сначала подключите Google Sheets по инструкции', 'err');
+  if (!title) return setStatus('mediaPlanStatus', 'Введите название коммуникации или название новой задачи', 'err');
+  if (!currentType && !shildikMode) return setStatus('mediaPlanStatus', 'Сначала выберите тип коммуникации', 'err');
+
+  let payload;
+  if (!shildikMode && currentType.id === 'slider') {
+    const dates = mediaDates('');
+    const screen = rawField('', 'screen');
+    const service = rawField('', 'service');
+    if (!dates.start || !dates.end) return setStatus('mediaPlanStatus', 'В ТЗ слайдера заполните начало и конец', 'err');
+    if (!screen) return setStatus('mediaPlanStatus', 'В ТЗ слайдера выберите экран', 'err');
+    if (!service) return setStatus('mediaPlanStatus', 'В ТЗ слайдера заполните сервис', 'err');
+    payload = {
+      kind: 'slider',
+      row: { status: 'Бэклог', screen, start: dates.start, end: dates.end, service, offer: title }
+    };
+  } else {
+    const stream = document.getElementById('mediaStream').value;
+    const owner = document.getElementById('mediaOwner').value;
+    const targetAction = document.getElementById('mediaTargetAction').value.trim();
+    if (!stream) return setStatus('mediaPlanStatus', 'Выберите стрим', 'err');
+    if (!owner) return setStatus('mediaPlanStatus', 'Выберите, кто запускает коммуникацию', 'err');
+    if (!targetAction) return setStatus('mediaPlanStatus', 'Заполните целевое действие', 'err');
+    const rows = buildMainMediaRows(title, owner, targetAction);
+    const error = validateMediaRows(rows);
+    if (error) return setStatus('mediaPlanStatus', error, 'err');
+    payload = { kind: 'main', sheet: stream, rows };
+  }
+
+  try {
+    setStatus('mediaPlanStatus', 'Добавляем строку в медиаплан...', '');
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      mode: 'no-cors',
+      credentials: 'include',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+      redirect: 'follow'
+    });
+    // Корпоративный Apps Script не отдаёт CORS-заголовки статическому сайту.
+    // В no-cors браузер отправляет запрос, но возвращает opaque-ответ без
+    // доступного статуса и тела — это нормальный сценарий для этой интеграции.
+    if (response.type === 'opaque') {
+      const count = payload.kind === 'main' ? payload.rows.length : 1;
+      const suffix = count === 1 ? 'строка отправлена' : `строк отправлено: ${count}`;
+      return setStatus('mediaPlanStatus', '✓ ' + suffix + ' в медиаплан', 'ok');
+    }
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || result.ok === false) throw new Error(result.error || `HTTP ${response.status}`);
+    const count = result.rowsAdded || 1;
+    const suffix = count === 1 ? 'строка добавлена' : `строк добавлено: ${count}`;
+    setStatus('mediaPlanStatus', '✓ ' + suffix, 'ok');
+  } catch (e) {
+    setStatus('mediaPlanStatus', 'Не удалось записать: ' + (e && e.message ? e.message : e), 'err');
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1296,7 +1800,8 @@ async function addToTracker() {
 }
 
 function getCampaignStartValue() {
-  return formState['start'] || formState['pub_from'] || '';
+  const prefix = (shildikMode && selectedShildiks.length === 1) ? selectedShildiks[0] : '';
+  return formState[fid(prefix, 'start')] || formState[fid(prefix, 'pub_from')] || '';
 }
 
 function computeDeadline() {
@@ -1305,14 +1810,20 @@ function computeDeadline() {
   const datePart = startVal.split('T')[0];
   const [y, m, d] = datePart.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
+  // Дедлайн — предыдущий рабочий день. Для запуска в понедельник
+  // откатываемся с воскресенья на пятницу.
   dt.setDate(dt.getDate() - 1);
+  while (dt.getDay() === 0 || dt.getDay() === 6) {
+    dt.setDate(dt.getDate() - 1);
+  }
   const p = n => String(n).padStart(2, '0');
   return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
 }
 
 function buildFormsAnswer(title, description) {
-  if (!currentType) return null;
-  const taskType = FORM_TASK_TYPE[currentType.id];
+  const type = activeTypeForTracker();
+  if (!type) return null;
+  const taskType = FORM_TASK_TYPE[type.id];
   if (!taskType) return null;
 
   const answer = {
@@ -1326,15 +1837,15 @@ function buildFormsAnswer(title, description) {
   const deadline = computeDeadline();
   if (deadline) answer['answer_date_9008946993186502'] = deadline;
 
-  const isShildik = currentType.id.startsWith('shildik-');
-  const isGo = currentType.id === 'go';
+  const isShildik = type.id.startsWith('shildik-');
+  const isGo = type.id === 'go';
 
   if (isShildik) {
-    if (currentType.id === 'shildik-music-books') {
+    if (type.id === 'shildik-music-books') {
       const sel = document.querySelector('input[name="nt-shildik-service"]:checked');
       answer['answer_choices_9008968777534712'] = [sel ? sel.value : FORM_SHILDIK_MB_OPTS[0].value];
     } else {
-      answer['answer_choices_9008968777534712'] = [FORM_SHILDIK_SERVICE[currentType.id]];
+      answer['answer_choices_9008968777534712'] = [FORM_SHILDIK_SERVICE[type.id]];
     }
   }
 
@@ -1344,7 +1855,13 @@ function buildFormsAnswer(title, description) {
     answer['answer_choices_9008961268309824'] = [FORM_SENDING_SERVICE_SP];
   }
 
-  if (currentType.id === 'sms') {
+  if (type.id === 'email' || type.id === 'sms') {
+    const whitening = document.getElementById('nt-whitening').value;
+    if (!whitening) return { error: 'Укажите, нужно ли обеление для Email/SMS' };
+    answer['answer_choices_9008985630430940'] = [whitening];
+  }
+
+  if (type.id === 'sms') {
     const cfo = document.getElementById('nt-cfo').value;
     const service = document.getElementById('nt-service').value;
     const project = document.getElementById('nt-project').value;
@@ -1364,7 +1881,7 @@ async function findCreatedTickets(title, expectedCount) {
   const BASE = 'https://st-api.yandex-team.ru/v2';
   const AUTH = { 'Authorization': 'OAuth ' + token };
 
-  for (let attempt = 0; attempt < 6; attempt++) {
+  for (let attempt = 0; attempt < 15; attempt++) {
     const resp = await fetch(`${BASE}/issues/_search?perPage=20`, {
       method: 'POST',
       headers: { ...AUTH, 'Content-Type': 'application/json' },
@@ -1375,7 +1892,7 @@ async function findCreatedTickets(title, expectedCount) {
       const matches = issues.filter(i => i.summary && i.summary.includes(title));
       if (matches.length >= expectedCount) return matches.slice(0, expectedCount).map(i => i.key);
     }
-    await new Promise(r => setTimeout(r, 1500));
+    await new Promise(r => setTimeout(r, 2000));
   }
   return [];
 }
@@ -1387,26 +1904,50 @@ async function reassignAuthor(key) {
 
   try {
     const meResp = await fetch(`${BASE}/myself`, { headers: AUTH });
-    if (!meResp.ok) return;
+    if (!meResp.ok) return { ok: false, error: `не удалось определить пользователя (${meResp.status})` };
     const me = await meResp.json();
-    if (!me.login) return;
-    await fetch(`${BASE}/issues/${key}`, {
+    if (!me.login) return { ok: false, error: 'Tracker не вернул логин пользователя' };
+    const updateResp = await fetch(`${BASE}/issues/${key}`, {
       method: 'PATCH',
       headers: { ...AUTH, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ createdBy: me.login })
+      body: JSON.stringify({ author: me.login })
     });
-  } catch {
-    // не критично — тикет уже создан, просто останется автор-робот
+    if (!updateResp.ok) {
+      const error = await updateResp.json().catch(() => ({}));
+      return { ok: false, error: error.message || `ошибка ${updateResp.status}` };
+    }
+    return { ok: true, login: me.login };
+  } catch (error) {
+    return { ok: false, error: error && error.message ? error.message : String(error) };
   }
 }
 
+function renderCreatedTicketButtons(keys) {
+  const container = document.getElementById('createdTicketActions');
+  if (!keys || !keys.length) {
+    container.innerHTML = '';
+    container.style.display = 'none';
+    return;
+  }
+  container.innerHTML = keys.map(key =>
+    `<a class="btn btn-primary" href="https://st.yandex-team.ru/${key}" target="_blank" rel="noopener" style="display:block; text-align:center; margin-top:8px">Перейти в созданный тикет ${key}</a>`
+  ).join('');
+  container.style.display = 'block';
+}
+
 async function createAndAddToTracker() {
+  renderCreatedTicketButtons([]);
   const trackerToken = localStorage.getItem('tz_tracker_token');
   const title = document.getElementById('newTicketSummary').value.trim();
   const desc  = document.getElementById('newTicketDesc').value.trim();
   const box   = document.getElementById('previewBox');
   const text  = box.textContent;
 
+  if (shildikMode && selectedShildiks.length !== 1) {
+    return setStatus('trackerStatus', selectedShildiks.length === 0
+      ? 'Выберите один шильдик, чтобы создать тикет через форму'
+      : 'Форма создания тикета поддерживает только один шильдик за раз — оставьте выбранным один', 'err');
+  }
   if (!trackerToken) return setStatus('trackerStatus', 'Сначала сохраните токен Трекера', 'err');
   if (!title)        return setStatus('trackerStatus', 'Введите название задачи', 'err');
   if (!desc)         return setStatus('trackerStatus', 'Введите короткое описание задачи', 'err');
@@ -1430,23 +1971,30 @@ async function createAndAddToTracker() {
       body: JSON.stringify(built.answer)
     });
 
-    const expectedCount = (currentType.id === 'shildik-music-books') ? 2 : 1;
+    const expectedCount = (activeTypeForTracker().id === 'shildik-music-books') ? 2 : 1;
     setStatus('trackerStatus', 'Заявка отправлена, ищем созданный тикет...', '');
     const keys = await findCreatedTickets(title, expectedCount);
 
     if (!keys.length) {
-      setStatus('trackerStatus', 'Заявка отправлена, но тикет не нашёлся в DIRECTMARKETING за 9 секунд — либо он ещё не проиндексировался, либо форма не приняла данные. Проверьте очередь вручную и, если тикета нет, добавьте ТЗ через вкладку «В существующий тикет»', 'err');
+      setStatus('trackerStatus', 'Заявка отправлена, но тикет не нашёлся в DIRECTMARKETING за 30 секунд — форма могла не принять данные. Проверьте очередь вручную и, если тикета нет, добавьте ТЗ через вкладку «В существующий тикет»', 'err');
       return;
     }
 
     setStatus('trackerStatus', 'Тикет найден, переставляем автора и добавляем ТЗ...', '');
+    const authorWarnings = [];
     for (const key of keys) {
-      await reassignAuthor(key);
+      const authorResult = await reassignAuthor(key);
+      if (!authorResult.ok) authorWarnings.push(`${key}: ${authorResult.error}`);
       await postTZToIssue(key, true);
     }
 
     const links = keys.map(ticketLink).join(', ');
-    setStatusHtml('trackerStatus', `✓ Тикет(ы) созданы через форму: ${links}, ТЗ добавлено`, 'ok');
+    renderCreatedTicketButtons(keys);
+    if (authorWarnings.length) {
+      setStatusHtml('trackerStatus', `Тикет(ы) созданы: ${links}, ТЗ добавлено. Автор не изменён: ${authorWarnings.join('; ')}`, 'err');
+    } else {
+      setStatusHtml('trackerStatus', `✓ Тикет(ы) созданы через форму: ${links}, автор изменён на текущего пользователя, ТЗ добавлено`, 'ok');
+    }
   } catch (e) {
     setStatus('trackerStatus', 'Ошибка сети: ' + (e && e.message ? e.message : e) + ' — если в консоли браузера (F12) видно "CORS"/"blocked", проверьте VPN или обратитесь к разработчику. Можно скопировать ТЗ и вставить вручную.', 'err');
   }
@@ -1546,30 +2094,30 @@ function buildTimeOpts() {
 }
 const TIME_OPTS = buildTimeOpts();
 
-function renderDTPicker(f) {
+function renderDTPicker(f, key) {
   const hasTime = f.type === 'datetime-local';
   const timeRow = hasTime ? `
     <div class="dt-time-row">
       <label>Время</label>
-      <select id="dt-time-${f.key}" onchange="dtSelectTime('${f.key}', this.value)">${TIME_OPTS}</select>
+      <select id="dt-time-${key}" onchange="dtSelectTime('${key}', this.value)">${TIME_OPTS}</select>
     </div>` : '';
 
   return `
-    <div class="dt-picker" id="dt-wrap-${f.key}">
-      <input type="text" id="fld-${f.key}" class="dt-input" readonly
+    <div class="dt-picker" id="dt-wrap-${key}">
+      <input type="text" id="fld-${key}" class="dt-input" readonly
              placeholder="${hasTime ? 'дд.мм.гггг чч:мм' : 'дд.мм.гггг'}"
-             onclick="openDTPicker('${f.key}', ${hasTime})">
-      <div class="dt-popup" id="dt-popup-${f.key}">
+             onclick="openDTPicker('${key}', ${hasTime})">
+      <div class="dt-popup" id="dt-popup-${key}">
         <div class="dt-cal-header">
-          <button class="dt-nav" onclick="dtPrevMonth('${f.key}');event.stopPropagation()">‹</button>
-          <span id="dt-month-${f.key}"></span>
-          <button class="dt-nav" onclick="dtNextMonth('${f.key}');event.stopPropagation()">›</button>
+          <button class="dt-nav" onclick="dtPrevMonth('${key}');event.stopPropagation()">‹</button>
+          <span id="dt-month-${key}"></span>
+          <button class="dt-nav" onclick="dtNextMonth('${key}');event.stopPropagation()">›</button>
         </div>
         <div class="dt-weekdays">
           <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div>
           <div>Сб</div><div>Вс</div>
         </div>
-        <div class="dt-cal-grid" id="dt-cal-grid-${f.key}"></div>
+        <div class="dt-cal-grid" id="dt-cal-grid-${key}"></div>
         ${timeRow}
       </div>
     </div>`;
