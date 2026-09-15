@@ -563,7 +563,7 @@
     <div class="header-text">
       <h1>Конструктор ТЗ</h1>
       <p>CRM Plus AdTech — быстрое заведение задач на технических операторов</p>
-      <span class="build-version">Версия 2026.09.15-robot3</span>
+      <span class="build-version">Версия 2026.09.15-bi4</span>
     </div>
     <div class="cat-strip">
       <div class="cat-item">
@@ -740,6 +740,41 @@
 
       <button class="btn btn-primary" style="width:100%" onclick="addToMediaPlan()">Добавить в медиаплан</button>
       <div id="mediaPlanStatus" class="status-msg"></div>
+    </div>
+
+    <div class="card" id="biPortalCard">
+      <div class="card-title">Добавить источник переходов в BI Portal</div>
+      <p class="tracker-note">Кнопка скопирует готовую строку в табличном формате и откроет BI Portal. В блоке «Новые данные» выберите первую ячейку и вставьте через Cmd/Ctrl + V — значения распределятся по столбцам.</p>
+
+      <div class="form-group">
+        <div class="form-label">utm_campaign <span class="req">*</span></div>
+        <input type="text" id="biUtmCampaign" placeholder="Введите значение utm_campaign" />
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">utm_source <span class="req">*</span></div>
+        <input type="text" id="biUtmSource" placeholder="Введите utm_source" />
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">utm_medium <span class="req">*</span></div>
+        <input type="text" id="biUtmMedium" placeholder="Введите utm_medium" />
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">utm_term</div>
+        <input type="text" id="biUtmTerm" placeholder="Если значения нет, будет подставлен —" />
+      </div>
+
+      <div class="form-group">
+        <div class="form-label">Канал / формат <span class="req">*</span></div>
+        <select id="biPortalContext" onchange="prefillBiUtmFields()">
+          <option value="">— сначала выберите тип коммуникации —</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary" id="biPortalOpenBtn" style="width:100%" onclick="openBiPortalForm()" disabled>Скопировать строку и открыть форму</button>
+      <div id="biPortalStatus" class="status-msg"></div>
     </div>
 
   </div>
@@ -1016,6 +1051,12 @@ const TYPES = [
   }
 ];
 
+const DEFAULT_SEGMENTS = {
+  email: '- РФ\n- Обеление email\n- Не фрод\n- Открывали письма 180 дней и не БГ',
+  sms: '- РФ\n- Обеление sms\n- Не фрод',
+  tg: '- РФ\n- Обеление тг\n- Не фрод'
+};
+
 // Шильдики схлопнуты в один пункт в сетке типов — выбираются чекбоксами внутри
 const SHILDIK_IDS = ['shildik-go', 'shildik-music-books', 'shildik-edadil'];
 
@@ -1044,6 +1085,7 @@ function init() {
     if (e.isTrusted) e.currentTarget.dataset.manual = '1';
   });
   updateMediaPlanUI();
+  updateBiPortalUI();
 }
 
 function renderTypeGrid() {
@@ -1103,13 +1145,23 @@ function selectType(id) {
   }
 
   renderForm();
+  applyDefaultSegment(id);
   renderNewTicketExtra();
   updateMediaPlanUI();
+  updateBiPortalUI();
 
   document.getElementById('previewBox').innerHTML =
     '<span class="preview-empty">Заполните форму и нажмите «Создать ТЗ»</span>';
 
   fc.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function applyDefaultSegment(typeId) {
+  const value = DEFAULT_SEGMENTS[typeId];
+  if (!value) return;
+  formState.segment = value;
+  const field = document.getElementById('fld-segment');
+  if (field) field.value = value;
 }
 
 function selectShildikGroup() {
@@ -1132,6 +1184,7 @@ function selectShildikGroup() {
   renderShildikPicker();
   renderNewTicketExtra();
   updateMediaPlanUI();
+  updateBiPortalUI();
 
   document.getElementById('previewBox').innerHTML =
     '<span class="preview-empty">Выберите шильдики, заполните формы и нажмите «Создать ТЗ»</span>';
@@ -1164,6 +1217,7 @@ function toggleShildikPick(id) {
   renderShildikSections();
   renderNewTicketExtra();
   updateMediaPlanUI();
+  updateBiPortalUI();
   buildTZ();
 }
 
@@ -1343,6 +1397,7 @@ function bindFieldEvents(fields, prefix) {
       const cbs = document.querySelectorAll(`input[name="${key}"]`);
       cbs.forEach(cb => cb.addEventListener('change', () => {
         formState[key] = Array.from(cbs).filter(c => c.checked).map(c => c.value);
+        if (key === 'formats') updateBiPortalUI();
       }));
     } else if (f.type === 'repeat') {
       const sel = document.getElementById('fld-repeat');
@@ -1770,6 +1825,209 @@ async function addToMediaPlan() {
     setStatus('mediaPlanStatus', '✓ ' + suffix, 'ok');
   } catch (e) {
     setStatus('mediaPlanStatus', 'Не удалось записать: ' + (e && e.message ? e.message : e), 'err');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  BI PORTAL — «Источники переходов в СП»
+// ════════════════════════════════════════════════════════════════
+
+const BI_PORTAL_FORM_URL = 'https://bi-portal.yandex-team.ru/forms/8af28bf0-3bee-45bc-b65b-e2d76919b026';
+const BI_PORTAL_COLUMNS = [
+  'utm_source', 'utm_medium', 'utm_content', 'utm_term',
+  'is_utm_term_important', 'utm_campaign', 'from', 'level_1',
+  'level_2', 'level_3', 'level_4', 'channel_name_budget',
+  'adtech_department', 'duration_type', 'promo_type', 'mechanic_type'
+];
+const BI_GO_LEVEL3 = {
+  'Билетик': 'билетик [CRM]',
+  'Объект на карте': 'объект [CRM]',
+  'Пуш': 'пуш [CRM]',
+  'Промоплашка в поездке': 'промоплашка в поездке [CRM]',
+  'Сплэш': 'сплэш [CRM]',
+  'Турбокнопка': 'турбокнопка [CRM]',
+  'Промобаннер в фиде': 'промобаннер в фиде [CRM]',
+  'Фулскрин': 'фулскрин [CRM]',
+  'Промокарточка': 'промокарточка [CRM]',
+  'Промоплашка в селекторе': 'промоплашка в селекторе [CRM]',
+  'Промо-место': 'промо-место [CRM]'
+};
+let biPortalContextCache = [];
+
+function getBiPortalContexts() {
+  if (shildikMode) {
+    return selectedShildiks.map(id => ({
+      typeId: id,
+      prefix: id,
+      label: TYPES.find(t => t.id === id)?.label || 'Шильдик',
+      level3: 'шильдик'
+    }));
+  }
+  if (!currentType) return [];
+  if (currentType.id === 'go') {
+    const formats = Array.isArray(formState.formats) ? formState.formats : [];
+    return formats.map(format => ({
+      typeId: 'go',
+      prefix: '',
+      format,
+      label: `Яндекс Go — ${format}`,
+      level3: BI_GO_LEVEL3[format] || ''
+    }));
+  }
+  const level3ByType = {
+    email: 'письмо',
+    sms: 'смс',
+    tg: 'тг бот',
+    slider: 'Слайдер баннер'
+  };
+  return [{
+    typeId: currentType.id,
+    prefix: '',
+    label: currentType.label,
+    level3: level3ByType[currentType.id] || ''
+  }];
+}
+
+function updateBiPortalUI() {
+  const select = document.getElementById('biPortalContext');
+  const button = document.getElementById('biPortalOpenBtn');
+  if (!select || !button) return;
+  biPortalContextCache = getBiPortalContexts();
+  if (!biPortalContextCache.length) {
+    const message = currentType?.id === 'go'
+      ? '— выберите формат Яндекс Go —'
+      : shildikMode
+        ? '— выберите шильдик —'
+        : '— сначала выберите тип коммуникации —';
+    select.innerHTML = `<option value="">${message}</option>`;
+    button.disabled = true;
+    return;
+  }
+  select.innerHTML = biPortalContextCache.map((ctx, index) =>
+    `<option value="${index}">${ctx.label}</option>`
+  ).join('');
+  button.disabled = false;
+  prefillBiUtmFields();
+}
+
+function parseUtmFromValue(value) {
+  const raw = String(value || '').trim().replace(/&amp;/g, '&');
+  if (!raw) return {};
+  let query = raw;
+  try {
+    query = new URL(raw).search;
+  } catch (_) {
+    if (raw.includes('?')) query = raw.slice(raw.indexOf('?') + 1);
+  }
+  const params = new URLSearchParams(String(query).replace(/^\?/, ''));
+  return {
+    utm_source: params.get('utm_source') || '',
+    utm_medium: params.get('utm_medium') || '',
+    utm_term: params.get('utm_term') || ''
+  };
+}
+
+function biUtmForContext(ctx) {
+  const prefix = ctx.prefix || '';
+  const candidates = [
+    rawField(prefix, 'utm'),
+    rawField(prefix, 'url'),
+    rawField(prefix, 'deeplink')
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    const parsed = parseUtmFromValue(candidate);
+    if (parsed.utm_source || parsed.utm_medium || parsed.utm_term) return parsed;
+  }
+  return {};
+}
+
+function biDurationType() {
+  const raw = String(formState.repeat || formState.campaign_type || '').toLocaleLowerCase('ru-RU');
+  return (raw.includes('период') || raw.includes('регуляр')) ? 'always-on' : 'one time';
+}
+
+function prefillBiUtmFields() {
+  const select = document.getElementById('biPortalContext');
+  if (!select) return;
+  const ctx = biPortalContextCache[Number(select.value || 0)];
+  if (!ctx) return;
+  const parsed = biUtmForContext(ctx);
+  const source = document.getElementById('biUtmSource');
+  const medium = document.getElementById('biUtmMedium');
+  const term = document.getElementById('biUtmTerm');
+  if (source && !source.value.trim() && parsed.utm_source) source.value = parsed.utm_source;
+  if (medium && !medium.value.trim() && parsed.utm_medium) medium.value = parsed.utm_medium;
+  if (term && !term.value.trim() && parsed.utm_term) term.value = parsed.utm_term;
+}
+
+async function openBiPortalForm() {
+  const selectedIndex = Number(document.getElementById('biPortalContext').value || 0);
+  const ctx = biPortalContextCache[selectedIndex];
+  const campaign = document.getElementById('biUtmCampaign').value.trim();
+  if (!ctx) return setStatus('biPortalStatus', 'Сначала выберите тип коммуникации и канал', 'err');
+  if (!campaign) return setStatus('biPortalStatus', 'Заполните utm_campaign', 'err');
+  if (!ctx.level3) {
+    const label = ctx.format || ctx.label;
+    return setStatus('biPortalStatus', `Формат «${label}» отсутствует в легенде level_3`, 'err');
+  }
+
+  const parsedUtm = biUtmForContext(ctx);
+  const utmSource = document.getElementById('biUtmSource').value.trim() || parsedUtm.utm_source || '';
+  const utmMedium = document.getElementById('biUtmMedium').value.trim() || parsedUtm.utm_medium || '';
+  const manualTerm = document.getElementById('biUtmTerm').value.trim();
+  if (!utmSource || !utmMedium) {
+    return setStatus('biPortalStatus', 'Заполните utm_source и utm_medium', 'err');
+  }
+  const term = manualTerm || parsedUtm.utm_term || '-';
+  const values = {
+    utm_source: utmSource,
+    utm_medium: utmMedium,
+    utm_content: '-',
+    utm_term: term,
+    is_utm_term_important: term === '-' ? '0' : '1',
+    utm_campaign: campaign,
+    from: '-',
+    level_1: ctx.typeId === 'slider' ? 'Продукт' : 'Маркетинг',
+    level_2: (ctx.typeId === 'go' || ctx.typeId === 'shildik-go') ? '' : 'CRM',
+    level_3: ctx.level3,
+    level_4: '-',
+    channel_name_budget: ctx.typeId === 'sms' ? 'СМС' : '-',
+    adtech_department: 'crm',
+    duration_type: biDurationType(),
+    promo_type: '-',
+    mechanic_type: '-'
+  };
+  const clipboardValues = BI_PORTAL_COLUMNS.map(column =>
+    String(values[column] ?? '').replace(/[\t\r\n]+/g, ' ').trim()
+  );
+  const clipboardRow = clipboardValues.join('\t');
+  const escapeHtml = value => value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  // BI Portal распознаёт многоколоночную вставку именно из HTML-таблицы
+  // (такой формат кладёт в буфер Excel), а plain text воспринимает как одну ячейку.
+  const clipboardTable = '<table><tbody><tr>'
+    + clipboardValues.map(value => `<td>${escapeHtml(value)}</td>`).join('')
+    + '</tr></tbody></table>';
+
+  // Запускаем копирование и открытие в рамках одного пользовательского клика,
+  // иначе браузер может заблокировать буфер обмена или новую вкладку.
+  const copyPromise = navigator.clipboard && window.isSecureContext
+    ? (window.ClipboardItem && navigator.clipboard.write
+      ? navigator.clipboard.write([new ClipboardItem({
+          'text/plain': new Blob([clipboardRow], { type: 'text/plain' }),
+          'text/html': new Blob([clipboardTable], { type: 'text/html' })
+        })])
+      : navigator.clipboard.writeText(clipboardRow))
+    : Promise.reject(new Error('Clipboard API unavailable'));
+  window.open(BI_PORTAL_FORM_URL, '_blank', 'noopener');
+  try {
+    await copyPromise;
+    setStatus('biPortalStatus', '✓ Табличная строка скопирована. Вставьте её в первую ячейку блока «Новые данные»', 'ok');
+  } catch (_) {
+    setStatus('biPortalStatus', 'Не удалось скопировать строку — разрешите сайту доступ к буферу обмена', 'err');
   }
 }
 
