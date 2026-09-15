@@ -47,6 +47,16 @@
     }
     .header-text h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
     .header-text p { opacity: 0.85; font-size: 13px; }
+    .build-version {
+      display: inline-block;
+      margin-top: 7px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.18);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .02em;
+    }
 
     /* Cat strip in header */
     .cat-strip {
@@ -553,6 +563,7 @@
     <div class="header-text">
       <h1>Конструктор ТЗ</h1>
       <p>CRM Plus AdTech — быстрое заведение задач на технических операторов</p>
+      <span class="build-version">Версия 2026.09.15-robot3</span>
     </div>
     <div class="cat-strip">
       <div class="cat-item">
@@ -1719,7 +1730,7 @@ async function addToMediaPlan() {
     if (!service) return setStatus('mediaPlanStatus', 'В ТЗ слайдера заполните сервис', 'err');
     payload = {
       kind: 'slider',
-      row: { status: 'Бэклог', screen, start: dates.start, end: dates.end, service, offer: title }
+      row: { status: 'бэклог', screen, start: dates.start, end: dates.end, service, offer: title }
     };
   } else {
     const stream = document.getElementById('mediaStream').value;
