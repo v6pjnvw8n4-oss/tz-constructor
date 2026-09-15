@@ -812,6 +812,8 @@ const DM_FIELDS = {
   periodicity: '628229d8f6547744f4c28ef9--periodicity',
   experiment: '628229d8f6547744f4c28ef9--experiment',
   customer: '628229d8f6547744f4c28ef9--customer',
+  sendingService: '628229d8f6547744f4c28ef9--sendingService',
+  createNew: '628229d8f6547744f4c28ef9--createANewOne',
   placement: '628229d8f6547744f4c28ef9--placementService'
 };
 
@@ -1922,10 +1924,16 @@ function buildDirectIssueSpec(title, description) {
     type: 'task',
     priority: 'normal',
     deadline,
+    followers: ['spock'],
     [DM_FIELDS.type]: typeName,
-    [DM_FIELDS.experiment]: 'Нет'
+    [DM_FIELDS.experiment]: 'Нет',
+    [DM_FIELDS.customer]: 'AdTech',
+    [DM_FIELDS.createNew]: 'Новая задача'
   };
-  if (periodicity) issue[DM_FIELDS.periodicity] = periodicity;
+  if (periodicity) {
+    issue[DM_FIELDS.periodicity] = periodicity;
+    issue[DM_FIELDS.sendingService] = 'Свои Плюсы';
+  }
   return { issue, typeName, placement, needsPull: type.id === 'shildik-music-books' };
 }
 
@@ -1952,6 +1960,37 @@ async function createTrackerIssue(issue, token) {
   return data;
 }
 
+async function ensureTrackerAutomationFields(key, issue, token) {
+  const BASE = 'https://st-api.yandex-team.ru/v2';
+  const patch = { followers: { add: ['spock'] } };
+  Object.values(DM_FIELDS).forEach(field => {
+    if (issue[field] !== undefined && issue[field] !== null && issue[field] !== '') {
+      patch[field] = issue[field];
+    }
+  });
+
+  let response;
+  try {
+    response = await fetch(`${BASE}/issues/${encodeURIComponent(key)}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': 'OAuth ' + token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(patch)
+    });
+  } catch (_) {
+    throw new Error(`Тикет ${key} создан, но не удалось передать поля для запуска робота`);
+  }
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || data.errors?.join(', ') ||
+      `Тикет ${key} создан, но Tracker не принял поля автоматизации (${response.status})`);
+  }
+  return data;
+}
+
 function buildPullIssue(mainIssue, mainKey, placement) {
   return {
     queue: 'DIRECTMARKETING',
@@ -1961,8 +2000,10 @@ function buildPullIssue(mainIssue, mainKey, placement) {
     priority: 'normal',
     deadline: mainIssue.deadline,
     parent: mainKey,
+    followers: ['spock'],
     [DM_FIELDS.type]: 'Pull',
     [DM_FIELDS.customer]: 'AdTech',
+    [DM_FIELDS.createNew]: 'Новая задача',
     [DM_FIELDS.placement]: [placement]
   };
 }
@@ -2012,11 +2053,15 @@ async function createAndAddToTracker() {
     setStatus('trackerStatus', 'Создаём тикет в DIRECTMARKETING...', '');
     const main = await createTrackerIssue(built.issue, trackerToken);
     createdKeys.push(main.key);
+    setStatus('trackerStatus', 'Тикет создан, запускаем обработку роботом...', '');
+    await ensureTrackerAutomationFields(main.key, built.issue, trackerToken);
 
     if (built.needsPull) {
       setStatus('trackerStatus', 'Основной тикет создан, создаём дочерний pull-тикет...', '');
-      const pull = await createTrackerIssue(buildPullIssue(built.issue, main.key, built.placement), trackerToken);
+      const pullIssue = buildPullIssue(built.issue, main.key, built.placement);
+      const pull = await createTrackerIssue(pullIssue, trackerToken);
       createdKeys.push(pull.key);
+      await ensureTrackerAutomationFields(pull.key, pullIssue, trackerToken);
     }
 
     setStatus('trackerStatus', 'Тикет создан, добавляем ТЗ...', '');
