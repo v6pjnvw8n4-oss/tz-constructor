@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Конструктор ТЗ — CRM Plus AdTech</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23EC4899'/%3E%3Cpath d='M16 8v16M8 16h16' fill='none' stroke='white' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -563,7 +564,7 @@
     <div class="header-text">
       <h1>Конструктор ТЗ</h1>
       <p>CRM Plus AdTech — быстрое заведение задач на технических операторов</p>
-      <span class="build-version">Версия 2026.09.15-bi4</span>
+      <span class="build-version">Версия 2026.09.17-multi1</span>
     </div>
     <div class="cat-strip">
       <div class="cat-item">
@@ -672,6 +673,12 @@
         <div class="form-group">
           <div class="form-label">Короткое описание задачи</div>
           <textarea id="newTicketDesc" rows="2" placeholder="в двух словах — что за коммуникация и зачем"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="newTicketRelated">Связать с задачей:</label>
+          <input type="text" id="newTicketRelated" placeholder="CRMADTECH-123 или ссылка на задачу" />
+          <div class="field-hint"><span>Необязательно. Основной созданный тикет получит связь «Связана с» указанной задачей.</span></div>
         </div>
 
         <div id="newTicketExtra"></div>
@@ -1121,6 +1128,7 @@ function fid(prefix, key) {
 }
 
 function selectType(id) {
+  multiMode = false;
   currentType     = TYPES.find(t => t.id === id);
   shildikMode      = false;
   selectedShildiks = [];
@@ -1165,6 +1173,7 @@ function applyDefaultSegment(typeId) {
 }
 
 function selectShildikGroup() {
+  multiMode = false;
   currentType      = null;
   shildikMode      = true;
   selectedShildiks = [];
@@ -1438,7 +1447,7 @@ function renderField(f, prefix) {
     control = `<select id="fld-${key}">${emptyOpt}${opts}</select>`;
   } else if (f.type === 'repeat') {
     control = `
-      <select id="fld-repeat" onchange="onRepeatChange(this.value)">
+      <select id="fld-repeat">
         <option value="">—</option>
         <option value="разовая">разовая</option>
         <option value="периодическая">периодическая</option>
@@ -2290,11 +2299,27 @@ function renderCreatedTicketButtons(keys) {
   container.style.display = 'block';
 }
 
+async function linkTrackerIssue(key, relatedKey, token) {
+  const response = await fetch(`https://st-api.yandex-team.ru/v2/issues/${encodeURIComponent(key)}/links`, {
+    method: 'POST',
+    headers: { 'Authorization': 'OAuth ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ issue: relatedKey, relationship: 'relates' })
+  });
+  if (!response.ok) {
+    throw new Error(`Tracker не создал связь (${response.status}). Проверьте существование задачи и права доступа`);
+  }
+}
+
 async function createAndAddToTracker() {
   renderCreatedTicketButtons([]);
   const trackerToken = localStorage.getItem('tz_tracker_token');
   const title = document.getElementById('newTicketSummary').value.trim();
   const desc  = document.getElementById('newTicketDesc').value.trim();
+  const relatedRaw = document.getElementById('newTicketRelated').value.trim();
+  const relatedKey = extractTicketKey(relatedRaw).toUpperCase();
+  if (relatedRaw && !/^[A-Z][A-Z0-9_]*-\d+$/.test(relatedKey)) {
+    return setStatus('trackerStatus', 'В поле «Связать с задачей» укажите ключ вида CRMADTECH-123 или ссылку на задачу', 'err');
+  }
   const box   = document.getElementById('previewBox');
   const text  = box.textContent;
 
@@ -2314,6 +2339,7 @@ async function createAndAddToTracker() {
   if (built.error) return setStatus('trackerStatus', built.error, 'err');
 
   const createdKeys = [];
+  let linkWarning = '';
   try {
     setStatus('trackerStatus', 'Проверяем подключение к Tracker...', '');
     const trackerCheck = await checkTrackerAccess(trackerToken);
@@ -2322,6 +2348,14 @@ async function createAndAddToTracker() {
     setStatus('trackerStatus', 'Создаём тикет в DIRECTMARKETING...', '');
     const main = await createTrackerIssue(built.issue, trackerToken);
     createdKeys.push(main.key);
+    if (relatedKey) {
+      setStatus('trackerStatus', `Связываем ${main.key} с ${relatedKey}...`, '');
+      try {
+        await linkTrackerIssue(main.key, relatedKey, trackerToken);
+      } catch (e) {
+        linkWarning = `Не удалось связать ${main.key} с ${relatedKey}: ${e.message || 'ошибка сети'}. Добавьте связь вручную в созданном тикете; повторно создавать тикет не нужно.`;
+      }
+    }
     setStatus('trackerStatus', 'Тикет создан, запускаем обработку роботом...', '');
     await ensureTrackerAutomationFields(main.key, built.issue, trackerToken);
 
@@ -2341,10 +2375,15 @@ async function createAndAddToTracker() {
     const links = createdKeys.map(ticketLink).join(', ');
     renderCreatedTicketButtons(createdKeys);
     setStatusHtml('trackerStatus', `✓ Тикет(ы) созданы напрямую: ${links}. Автор — ${trackerCheck.display || trackerCheck.login}. ТЗ добавлено`, 'ok');
+    if (linkWarning) {
+      setStatus('trackerStatus', `Тикет(ы) ${createdKeys.join(', ')} созданы. ТЗ добавлено. ${linkWarning}`, 'err');
+    } else if (relatedKey) {
+      document.getElementById('trackerStatus').appendChild(document.createTextNode(`. Связь с ${relatedKey} добавлена`));
+    }
   } catch (e) {
     if (createdKeys.length) renderCreatedTicketButtons(createdKeys);
     const partial = createdKeys.length ? ` Уже создано: ${createdKeys.join(', ')}.` : '';
-    setStatus('trackerStatus', (e && e.message ? e.message : String(e)) + partial + ' Можно скопировать ТЗ и вставить вручную.', 'err');
+    setStatus('trackerStatus', (e && e.message ? e.message : String(e)) + partial + ' Можно скопировать ТЗ и вставить вручную.' + (linkWarning ? ' ' + linkWarning : ''), 'err');
   }
 }
 
@@ -2591,6 +2630,217 @@ document.addEventListener('click', e => {
 });
 
 // ════════════════════════════════════════════════════════════════
+// Multi mode keeps a full, isolated constructor per channel. This reuses the
+// existing validation, attachments, Tracker and media-plan integrations.
+let multiMode = false;
+const multiFrames = new Map();
+let multiSource = '';
+const originalRenderTypeGrid = renderTypeGrid;
+renderTypeGrid = function() {
+  originalRenderTypeGrid();
+  document.getElementById('typeGrid').insertAdjacentHTML('beforeend',
+    '<button class="type-btn" id="btn-multi" onclick="selectMulti()"><span class="grp">Несколько каналов</span>Мульти</button>');
+};
+
+function selectMulti() {
+  selectType('email');
+  multiMode = true;
+  currentType = null;
+  multiFrames.clear();
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-multi').classList.add('active');
+  document.getElementById('formTitle').textContent = 'Мульти — несколько каналов';
+  document.getElementById('formFields').innerHTML = `
+    <div class="form-group"><div class="form-label">Выберите каналы</div><div class="check-grid">
+    ${TYPES.filter(t => t.id !== 'slider').map(t => `<label class="check-item"><input type="checkbox" onchange="toggleMulti('${t.id}',this.checked)"/>${t.label}</label>`).join('')}
+    </div></div>
+    <div class="form-group"><label><input id="multiSeparateSegment" type="checkbox" onchange="changeMultiSharing('segment')"/> Разъединить сегменты</label>
+    <textarea id="multiSegment" rows="4" placeholder="Общий сегмент" oninput="syncMultiShared()"></textarea>
+    <div class="field-hint">Общий сегмент заменяет сегменты выбранных каналов. При разъединении можно редактировать каждый отдельно.</div></div>
+    <div class="form-group"><label><input id="multiSeparateDates" type="checkbox" onchange="changeMultiSharing('dates')"/> Разъединить даты</label>
+    <div id="multiDates"><label>Начало<input id="multiStart" type="datetime-local" oninput="syncMultiShared()"/></label>
+    <label>Конец<input id="multiEnd" type="datetime-local" oninput="syncMultiShared()"/></label></div></div>
+    <div id="multiChannels"></div>`;
+  document.getElementById('newTicketExtra').innerHTML = '<p class="tracker-note">Будет создан отдельный тикет на каждый выбранный канал. Параметры обеления и SMS заполните в карточках каналов.</p>';
+  buildTZ();
+}
+
+function multiWindows() {
+  return [...multiFrames.values()].filter(frame => frame.dataset.ready === '1').map(frame => frame.contentWindow);
+}
+
+function toggleMulti(id, checked) {
+  if (!checked) {
+    const frame = multiFrames.get(id);
+    if (frame) frame.parentElement.remove();
+    multiFrames.delete(id);
+    buildTZ(); updateBiPortalUI(); return;
+  }
+  const type = TYPES.find(t => t.id === id);
+  const card = document.createElement('div');
+  card.className = 'card';
+  const heading = document.createElement('div');
+  heading.className = 'card-title'; heading.textContent = type.label;
+  const frame = document.createElement('iframe');
+  frame.title = 'ТЗ на ' + type.label;
+  frame.style.cssText = 'width:100%;border:0;display:block;min-height:300px';
+  card.append(heading, frame);
+  multiFrames.set(id, frame);
+  frame.onload = () => {
+    const w = frame.contentWindow, d = w.document;
+    if (!d.getElementById('btn-' + id)) {
+      const button = d.createElement('button'); button.id = 'btn-' + id; d.body.append(button);
+    }
+    w.selectType(id);
+    if (id.startsWith('shildik-')) {
+      const originalRawField = w.rawField;
+      w.rawField = (prefix, key) => originalRawField(prefix === id ? '' : prefix, key);
+      w.getBiPortalContexts = () => [{typeId:id, prefix:'', label:type.label, level3:'шильдик'}];
+      w.buildMainMediaRows = (title, owner, targetAction) => [{
+        title, owner, targetAction, ...w.mediaDates(''), channel:'шильдик',
+        sender:id === 'shildik-go' ? 'Go' : id === 'shildik-edadil' ? 'Едадил' : w.rawField('', 'badge_service'),
+        segment:w.shortenSegment(w.rawField('', 'segment'))
+      }];
+    }
+    // Keep the form and channel-specific Tracker questions; outer constructor
+    // owns shared actions and task metadata.
+    const form = d.getElementById('formCard');
+    const extra = d.getElementById('newTicketExtra');
+    d.body.replaceChildren(form, extra);
+    form.style.cssText = 'display:block;margin:0;padding:8px;box-shadow:none;border:0';
+    d.body.style.cssText = 'padding:0;margin:0;background:transparent';
+    form.querySelectorAll('button').forEach(b => { if (b.getAttribute('onclick') === 'buildTZ()') b.style.display = 'none'; });
+    const title = d.getElementById('formTitle'); if (title) title.style.display = 'none';
+    frame.dataset.ready = '1';
+    if (!document.getElementById('multiSegment').value && multiFrames.size === 1) {
+      document.getElementById('multiSegment').value = w.eval('formState.segment') || '';
+    }
+    // Rendered single-channel fields have stable IDs, including repeat/layout.
+    new w.ResizeObserver(() => { frame.style.height = d.documentElement.scrollHeight + 'px'; }).observe(d.body);
+    d.addEventListener('input', () => { buildTZ(); updateBiPortalUI(); });
+    d.addEventListener('change', () => { buildTZ(); updateBiPortalUI(); });
+    // Date picker commits programmatically rather than firing input events.
+    const commit = w.dtCommit;
+    w.dtCommit = key => { commit(key); buildTZ(); };
+    // Functions expect status/preview/metadata elements even when hidden.
+    const hidden = d.createElement('div'); hidden.style.display = 'none';
+    hidden.innerHTML = multiSource.match(/<body[^>]*>([\s\S]*?)<script>/i)[1];
+    hidden.querySelector('#formCard')?.remove();
+    hidden.querySelector('#newTicketExtra')?.remove();
+    d.body.append(hidden);
+    syncMultiShared(); updateBiPortalUI();
+  };
+  frame.srcdoc = multiSource;
+  document.getElementById('multiChannels').append(card);
+}
+
+function changeMultiSharing(kind) {
+  const separate = document.getElementById(kind === 'segment' ? 'multiSeparateSegment' : 'multiSeparateDates').checked;
+  if (!separate && !confirm('Общие значения заменят индивидуальные значения выбранных каналов. Продолжить?')) {
+    document.getElementById(kind === 'segment' ? 'multiSeparateSegment' : 'multiSeparateDates').checked = true;
+    return;
+  }
+  syncMultiShared();
+}
+
+function syncMultiShared() {
+  const segmentShared = !document.getElementById('multiSeparateSegment').checked;
+  const datesShared = !document.getElementById('multiSeparateDates').checked;
+  document.getElementById('multiSegment').hidden = !segmentShared;
+  document.getElementById('multiDates').hidden = !datesShared;
+  for (const w of multiWindows()) {
+    const fields = w.eval('currentType.fields');
+    for (const f of fields) {
+      const isSegment = f.key === 'segment';
+      const isStart = ['start', 'pub_from'].includes(f.key);
+      const isEnd = ['end', 'pub_to'].includes(f.key);
+      if (!isSegment && !isStart && !isEnd) continue;
+      const shared = isSegment ? segmentShared : datesShared;
+      const el = w.document.getElementById('fld-' + f.key);
+      if (!el) continue;
+      el.closest('.form-group').hidden = shared;
+      if (shared) {
+        let value = document.getElementById(isSegment ? 'multiSegment' : isStart ? 'multiStart' : 'multiEnd').value;
+        if (f.type === 'date') value = value.split('T')[0];
+        w.eval('formState')[f.key] = value;
+        el.value = isSegment ? value : w.fmtDt(value);
+        // Drop cached picker state so ungrouping opens the newly shared date.
+        if (!isSegment) {
+          if (value) w.applyDtValue(f.key, value, f.type === 'datetime-local');
+          else w.eval('delete dtState[' + JSON.stringify(f.key) + ']');
+        }
+      }
+    }
+  }
+  buildTZ();
+}
+
+const singleBuildTZ = buildTZ;
+buildTZ = function() {
+  if (!multiMode) return singleBuildTZ();
+  const texts = multiWindows().map(w => { w.buildTZ(); return w.document.getElementById('previewBox').textContent; });
+  const preview = document.getElementById('previewBox');
+  if (texts.length) preview.textContent = texts.join('\n\n---\n\n');
+  else preview.innerHTML = '<span class="preview-empty">Выберите каналы для ТЗ</span>';
+};
+
+const singleMediaRows = buildMainMediaRows;
+buildMainMediaRows = function(...args) {
+  return multiMode ? multiWindows().flatMap(w => w.buildMainMediaRows(...args)) : singleMediaRows(...args);
+};
+const singleAddMedia = addToMediaPlan;
+addToMediaPlan = async function() {
+  if (!multiMode) return singleAddMedia();
+  currentType = {id:'multi'};
+  try { return await singleAddMedia(); } finally { currentType = null; }
+};
+const singleBiContexts = getBiPortalContexts;
+getBiPortalContexts = function() {
+  return multiMode ? multiWindows().flatMap((w, index) => w.getBiPortalContexts().map(ctx => ({...ctx, multiIndex:index}))) : singleBiContexts();
+};
+const singleBiUtm = biUtmForContext;
+biUtmForContext = function(ctx) {
+  return multiMode ? multiWindows()[ctx.multiIndex]?.biUtmForContext(ctx) || {} : singleBiUtm(ctx);
+};
+const singleBiDuration = biDurationType;
+biDurationType = function() {
+  if (!multiMode) return singleBiDuration();
+  const ctx = biPortalContextCache[Number(document.getElementById('biPortalContext').value)];
+  return multiWindows()[ctx?.multiIndex]?.biDurationType() || 'one time';
+};
+
+const singleCreateTracker = createAndAddToTracker;
+let multiCreating = false;
+createAndAddToTracker = async function() {
+  if (!multiMode) return singleCreateTracker();
+  if (multiCreating) return;
+  const windows = multiWindows();
+  if (!windows.length || windows.length !== multiFrames.size) return setStatus('trackerStatus', 'Выберите каналы и дождитесь загрузки карточек', 'err');
+  // Preflight every channel before creating the first issue.
+  for (const w of windows) {
+    for (const id of ['newTicketSummary','newTicketDesc','newTicketRelated']) w.document.getElementById(id).value = document.getElementById(id).value;
+    const spec = w.buildDirectIssueSpec(document.getElementById('newTicketSummary').value.trim(), document.getElementById('newTicketDesc').value.trim());
+    if (!spec || spec.error || !w.getCampaignStartValue()) return setStatus('trackerStatus', w.eval('currentType.label') + ': ' + (spec?.error || 'укажите начало кампании'), 'err');
+  }
+  multiCreating = true;
+  const keys = [];
+  try {
+    for (const w of windows) {
+      setStatus('trackerStatus', 'Создаём тикет: ' + w.eval('currentType.label'), '');
+      w.buildTZ();
+      await w.createAndAddToTracker();
+      w.document.querySelectorAll('#createdTicketActions a').forEach(a => keys.push(a.href.split('/').pop()));
+      const status = w.document.getElementById('trackerStatus');
+      if (!status.classList.contains('ok')) throw Error(status.textContent);
+    }
+    setStatus('trackerStatus', 'Тикеты созданы: ' + keys.join(', '), 'ok');
+  } catch (e) {
+    setStatus('trackerStatus', e.message + (keys.length ? ' Уже созданы: ' + keys.join(', ') + '. Не повторяйте создание всего набора; продолжите оставшиеся каналы отдельно.' : ''), 'err');
+  } finally { multiCreating = false; renderCreatedTicketButtons(keys); }
+};
+
+// Capture pristine markup before init modifies it; child frames use single mode.
+multiSource = '<!DOCTYPE html>' + document.documentElement.outerHTML;
 init();
 </script>
 </body>
