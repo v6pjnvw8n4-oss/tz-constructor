@@ -564,7 +564,7 @@
     <div class="header-text">
       <h1>Конструктор ТЗ</h1>
       <p>CRM Plus AdTech — быстрое заведение задач на технических операторов</p>
-      <span class="build-version">Версия 2026.09.17-multi1</span>
+      <span class="build-version">Версия 2026.10.08-control1</span>
     </div>
     <div class="cat-strip">
       <div class="cat-item">
@@ -1058,6 +1058,15 @@ const TYPES = [
   }
 ];
 
+const REQUIRED_SEGMENT_CONDITION = '- исключить контрольную группу [1724930] контроль 5% - не получают коммуникации';
+const REQUIRED_SEGMENT_EXPERIMENT = 'эксп: https://ab.yandex-team.ru/task/EXPERIMENTS-291507';
+function ensureRequiredSegment(value) {
+  const rest = String(value || '').split('\n').filter(line =>
+    line.trim() !== REQUIRED_SEGMENT_CONDITION && line.trim() !== REQUIRED_SEGMENT_EXPERIMENT
+  ).join('\n').trim();
+  return [rest, REQUIRED_SEGMENT_CONDITION, REQUIRED_SEGMENT_EXPERIMENT].filter(Boolean).join('\n');
+}
+
 const DEFAULT_SEGMENTS = {
   email: '- РФ\n- Обеление email\n- Не фрод\n- Открывали письма 180 дней и не БГ',
   sms: '- РФ\n- Обеление sms\n- Не фрод',
@@ -1165,8 +1174,7 @@ function selectType(id) {
 }
 
 function applyDefaultSegment(typeId) {
-  const value = DEFAULT_SEGMENTS[typeId];
-  if (!value) return;
+  const value = ensureRequiredSegment(DEFAULT_SEGMENTS[typeId]);
   formState.segment = value;
   const field = document.getElementById('fld-segment');
   if (field) field.value = value;
@@ -1402,6 +1410,17 @@ function renderForm() {
 function bindFieldEvents(fields, prefix) {
   fields.forEach(f => {
     const key = fid(prefix, f.key);
+    if (f.key === 'segment') {
+      formState[key] = ensureRequiredSegment(formState[key]);
+      const segment = document.getElementById('fld-' + key);
+      if (segment) {
+        segment.value = formState[key];
+        segment.addEventListener('blur', () => {
+          formState[key] = ensureRequiredSegment(segment.value);
+          segment.value = formState[key];
+        });
+      }
+    }
     if (f.type === 'multicheck') {
       const cbs = document.querySelectorAll(`input[name="${key}"]`);
       cbs.forEach(cb => cb.addEventListener('change', () => {
@@ -1611,7 +1630,7 @@ function buildFieldLines(fields, prefix) {
       return;
     }
 
-    const raw = formState[key];
+    const raw = f.key === 'segment' ? ensureRequiredSegment(formState[key]) : formState[key];
     if (raw === undefined || raw === '') return;
 
     let val = raw;
@@ -1706,6 +1725,7 @@ function updateMediaPlanUI() {
 }
 
 function rawField(prefix, key) {
+  if (key === 'segment') return ensureRequiredSegment(formState[fid(prefix || '', key)]);
   return formState[fid(prefix || '', key)] || '';
 }
 
@@ -1719,6 +1739,12 @@ function mediaDates(prefix) {
 }
 
 function shortenSegment(value) {
+  // Keep the mandatory exclusion and experiment link intact in the media plan.
+  if (String(value || '').includes(REQUIRED_SEGMENT_CONDITION)) {
+    const rest = String(value).split(REQUIRED_SEGMENT_CONDITION).join('')
+      .split(REQUIRED_SEGMENT_EXPERIMENT).join('').replace(/\s+/g, ' ').trim();
+    return ensureRequiredSegment(shortenSegment(rest));
+  }
   const clean = String(value || '').replace(/\s+/g, ' ').trim();
   if (clean.length <= 180) return clean;
   const firstSentence = clean.split(/[.!?]\s/)[0].trim();
@@ -2655,13 +2681,14 @@ function selectMulti() {
     ${TYPES.filter(t => t.id !== 'slider').map(t => `<label class="check-item"><input type="checkbox" onchange="toggleMulti('${t.id}',this.checked)"/>${t.label}</label>`).join('')}
     </div></div>
     <div class="form-group"><label><input id="multiSeparateSegment" type="checkbox" onchange="changeMultiSharing('segment')"/> Разъединить сегменты</label>
-    <textarea id="multiSegment" rows="4" placeholder="Общий сегмент" oninput="syncMultiShared()"></textarea>
+    <textarea id="multiSegment" rows="4" placeholder="Общий сегмент" oninput="syncMultiShared()" onblur="this.value=ensureRequiredSegment(this.value);syncMultiShared()"></textarea>
     <div class="field-hint">Общий сегмент заменяет сегменты выбранных каналов. При разъединении можно редактировать каждый отдельно.</div></div>
     <div class="form-group"><label><input id="multiSeparateDates" type="checkbox" onchange="changeMultiSharing('dates')"/> Разъединить даты</label>
     <div id="multiDates"><label>Начало<input id="multiStart" type="datetime-local" oninput="syncMultiShared()"/></label>
     <label>Конец<input id="multiEnd" type="datetime-local" oninput="syncMultiShared()"/></label></div></div>
     <div id="multiChannels"></div>`;
   document.getElementById('newTicketExtra').innerHTML = '<p class="tracker-note">Будет создан отдельный тикет на каждый выбранный канал. Параметры обеления и SMS заполните в карточках каналов.</p>';
+  document.getElementById('multiSegment').value = ensureRequiredSegment('');
   buildTZ();
 }
 
@@ -2761,6 +2788,7 @@ function syncMultiShared() {
       el.closest('.form-group').hidden = shared;
       if (shared) {
         let value = document.getElementById(isSegment ? 'multiSegment' : isStart ? 'multiStart' : 'multiEnd').value;
+        if (isSegment) value = ensureRequiredSegment(value);
         if (f.type === 'date') value = value.split('T')[0];
         w.eval('formState')[f.key] = value;
         el.value = isSegment ? value : w.fmtDt(value);
